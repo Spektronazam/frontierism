@@ -1,0 +1,2308 @@
+--!strict
+-- ============================================================
+--  DESPAIR UI LIBRARY v2.0 — Strict Typed & Fixed
+--  Synapse X Style | Smooth Animations | Search | Notifications
+-- ============================================================
+
+-- ── EXECUTOR COMPATIBILITY LAYER ──
+declare function gethui(): Instance
+declare Drawing: {
+    new: (className: string) -> any,
+    Fonts: {
+        UI: number,
+        System: number,
+        Plex: number,
+        Monospace: number,
+    }
+}
+
+-- ── SERVICES ──
+local Players: Players = game:GetService("Players")
+local RunService: RunService = game:GetService("RunService")
+local TweenService: TweenService = game:GetService("TweenService")
+local UserInputService: UserInputService = game:GetService("UserInputService")
+local HttpService: HttpService = game:GetService("HttpService")
+
+local LocalPlayer: Player = Players.LocalPlayer
+local Camera: Camera = workspace.CurrentCamera
+
+-- ── TYPE DEFINITIONS ──
+export type ThemeName = "Default" | "Synapse" | "Midnight"
+export type NotificationType = "info" | "success" | "warning" | "error" | "orbit"
+export type KeybindMode = "Hold" | "Toggle" | "Press"
+
+export type ThemeColors = {
+    Bg: Color3,
+    Topbar: Color3,
+    Sidebar: Color3,
+    Panel: Color3,
+    PanelDark: Color3,
+    Border: Color3,
+    Text: Color3,
+    SubText: Color3,
+    Hover: Color3,
+    Risky: Color3,
+}
+
+export type WindowConfig = {
+    Title: string?,
+    Accent: Color3?,
+    Size: Vector2?,
+    Position: UDim2?,
+    ToggleKey: Enum.KeyCode?,
+    Theme: ThemeName?,
+    UseConfig: string?,
+    CanResize: boolean?,
+    CanMinimize: boolean?,
+}
+
+export type ElementConfig = {
+    Text: string,
+    Tip: string?,
+    Risky: boolean?,
+    Callback: ((...any) -> ())?,
+}
+
+export type ToggleConfig = ElementConfig & {
+    Default: boolean?,
+    Keybind: (Enum.KeyCode | Enum.UserInputType)?,
+    KeybindMode: KeybindMode?,
+    KeybindCallback: ((boolean) -> ())?,
+}
+
+export type SliderConfig = ElementConfig & {
+    Min: number,
+    Max: number,
+    Default: number?,
+    Decimals: number?,
+    Suffix: string?,
+    Compact: boolean?,
+}
+
+export type DropdownConfig = ElementConfig & {
+    Items: { string },
+    Default: string?,
+}
+
+export type MultiDropdownConfig = ElementConfig & {
+    Items: { string },
+    Default: { string }?,
+}
+
+export type ColorPickerConfig = ElementConfig & {
+    Default: Color3?,
+}
+
+export type KeybindConfig = ElementConfig & {
+    Default: (Enum.KeyCode | Enum.UserInputType)?,
+    Mode: KeybindMode?,
+}
+
+export type ButtonConfig = ElementConfig & {
+    Callback: (() -> ())?,
+}
+
+export type TextInputConfig = ElementConfig & {
+    Default: string?,
+    Placeholder: string?,
+    Numeric: boolean?,
+    Finished: boolean?,
+}
+
+export type NotificationConfig = {
+    Message: string,
+    Duration: number?,
+    Type: NotificationType?,
+}
+
+-- ── THEME MANAGER ──
+local Themes: { [ThemeName]: ThemeColors } = {
+    Default = {
+        Bg = Color3.fromRGB(45, 45, 45),
+        Topbar = Color3.fromRGB(55, 55, 55),
+        Sidebar = Color3.fromRGB(40, 40, 40),
+        Panel = Color3.fromRGB(50, 50, 50),
+        PanelDark = Color3.fromRGB(35, 35, 35),
+        Border = Color3.fromRGB(25, 25, 25),
+        Text = Color3.fromRGB(255, 255, 255),
+        SubText = Color3.fromRGB(180, 180, 180),
+        Hover = Color3.fromRGB(65, 65, 65),
+        Risky = Color3.fromRGB(255, 80, 80),
+    },
+    Synapse = {
+        Bg = Color3.fromRGB(30, 30, 30),
+        Topbar = Color3.fromRGB(35, 35, 35),
+        Sidebar = Color3.fromRGB(25, 25, 25),
+        Panel = Color3.fromRGB(40, 40, 40),
+        PanelDark = Color3.fromRGB(20, 20, 20),
+        Border = Color3.fromRGB(15, 15, 15),
+        Text = Color3.fromRGB(240, 240, 240),
+        SubText = Color3.fromRGB(160, 160, 160),
+        Hover = Color3.fromRGB(60, 60, 60),
+        Risky = Color3.fromRGB(255, 60, 60),
+    },
+    Midnight = {
+        Bg = Color3.fromRGB(20, 22, 30),
+        Topbar = Color3.fromRGB(25, 28, 40),
+        Sidebar = Color3.fromRGB(18, 20, 28),
+        Panel = Color3.fromRGB(30, 32, 45),
+        PanelDark = Color3.fromRGB(15, 16, 22),
+        Border = Color3.fromRGB(10, 11, 16),
+        Text = Color3.fromRGB(220, 225, 240),
+        SubText = Color3.fromRGB(140, 145, 170),
+        Hover = Color3.fromRGB(45, 48, 65),
+        Risky = Color3.fromRGB(255, 70, 90),
+    },
+}
+
+-- ── UTILITY ──
+local Connection = {}
+Connection.__index = Connection
+export type Connection = typeof(setmetatable({} :: {
+    _conn: RBXScriptConnection?,
+    _active: boolean,
+}, Connection))
+
+function Connection.new(conn: RBXScriptConnection?): Connection
+    local self = setmetatable({}, Connection)
+    self._conn = conn
+    self._active = conn ~= nil
+    return self
+end
+
+function Connection:Disconnect(): ()
+    if self._conn and self._active then
+        self._conn:Disconnect()
+        self._active = false
+    end
+end
+
+function Connection:IsActive(): boolean
+    return self._active
+end
+
+local Signal = {}
+Signal.__index = Signal
+export type Signal<T...> = typeof(setmetatable({} :: {
+    _connections: { { Callback: (T...) -> (), Connection: Connection } },
+    _destroyed: boolean,
+}, Signal))
+
+function Signal.new<T...>(): Signal<T...>
+    local self = setmetatable({}, Signal) :: any
+    self._connections = {}
+    self._destroyed = false
+    return self
+end
+
+function Signal:Connect<T...>(fn: (T...) -> ()): Connection
+    assert(not self._destroyed, "Cannot connect to destroyed Signal")
+    local conn = Connection.new()
+    table.insert(self._connections, { Callback = fn, Connection = conn })
+    return conn
+end
+
+function Signal:Fire<T...>(...: T...)
+    if self._destroyed then return end
+    for _, data in ipairs(self._connections) do
+        if data.Connection:IsActive() then
+            task.spawn(data.Callback, ...)
+        end
+    end
+end
+
+function Signal:Destroy(): ()
+    self._destroyed = true
+    for _, data in ipairs(self._connections) do
+        data.Connection:Disconnect()
+    end
+    table.clear(self._connections)
+end
+
+local TweenEngine = {}
+TweenEngine.__index = TweenEngine
+export type TweenEngine = typeof(setmetatable({} :: {
+    _cache: { [Instance]: Tween },
+}, TweenEngine))
+
+function TweenEngine.new(): TweenEngine
+    local self = setmetatable({}, TweenEngine)
+    self._cache = setmetatable({}, { __mode = "k" })
+    return self
+end
+
+function TweenEngine:Tween(
+    object: Instance,
+    properties: { [string]: any },
+    duration: number?,
+    style: Enum.EasingStyle?,
+    direction: Enum.EasingDirection?
+): Tween?
+    if not object then return nil end
+    duration = duration or 0.15
+    style = style or Enum.EasingStyle.Quad
+    direction = direction or Enum.EasingDirection.Out
+
+    local existing = self._cache[object]
+    if existing then
+        pcall(function() existing:Cancel() end)
+    end
+
+    local ok, tween = pcall(function()
+        return TweenService:Create(object, TweenInfo.new(duration :: number, style, direction), properties)
+    end)
+
+    if ok and tween then
+        self._cache[object] = tween
+        tween.Completed:Once(function()
+            if self._cache[object] == tween then
+                self._cache[object] = nil
+            end
+        end)
+        tween:Play()
+        return tween
+    end
+    return nil
+end
+
+function TweenEngine:Destroy(): ()
+    for _, tween in pairs(self._cache) do
+        pcall(function() tween:Cancel() end)
+    end
+    table.clear(self._cache)
+end
+
+-- ── DRAWING API ──
+local DrawingCapable: boolean = pcall(function()
+    local d = Drawing.new("Square")
+    d:Remove()
+end)
+
+local DrawingFonts = DrawingCapable and Drawing.Fonts or { UI = 0, System = 1, Plex = 2, Monospace = 3 }
+
+local DrawPool = {}
+DrawPool.__index = DrawPool
+export type DrawPool = typeof(setmetatable({} :: {
+    _available: { any },
+    _inUse: { any },
+    _type: string,
+}, DrawPool))
+
+function DrawPool.new(typeName: string): DrawPool
+    local self = setmetatable({}, DrawPool)
+    self._available = {}
+    self._inUse = {}
+    self._type = typeName
+    return self
+end
+
+function DrawPool:Acquire(props: { [string]: any }?): any
+    local obj = table.remove(self._available)
+    if not obj then
+        local ok, d = pcall(Drawing.new, self._type)
+        if ok then
+            obj = d
+        else
+            return nil
+        end
+    end
+    if props then
+        for k, v in pairs(props) do
+            pcall(function() obj[k] = v end)
+        end
+    end
+    table.insert(self._inUse, obj)
+    return obj
+end
+
+function DrawPool:Release(obj: any): ()
+    for i, v in ipairs(self._inUse) do
+        if v == obj then
+            table.remove(self._inUse, i)
+            pcall(function() obj.Visible = false end)
+            table.insert(self._available, obj)
+            break
+        end
+    end
+end
+
+function DrawPool:Clear(): ()
+    for _, obj in ipairs(self._inUse) do
+        pcall(function() obj:Remove() end)
+    end
+    for _, obj in ipairs(self._available) do
+        pcall(function() obj:Remove() end)
+    end
+    table.clear(self._inUse)
+    table.clear(self._available)
+end
+
+-- ── NOTIFICATION SYSTEM ──
+local NotificationSystem = {}
+NotificationSystem.__index = NotificationSystem
+export type NotificationSystem = typeof(setmetatable({} :: {
+    _active: { any },
+    _pool: DrawPool,
+    _screenSize: Vector2,
+    _conn: Connection?,
+    _styles: { [NotificationType]: { color: Color3, icon: string } },
+}, NotificationSystem))
+
+function NotificationSystem.new(): NotificationSystem
+    local self = setmetatable({}, NotificationSystem)
+    self._active = {}
+    self._pool = DrawPool.new("Square")
+    self._screenSize = Camera.ViewportSize
+    self._styles = {
+        info = { color = Color3.fromRGB(150, 180, 255), icon = "i" },
+        success = { color = Color3.fromRGB(90, 255, 140), icon = "✓" },
+        warning = { color = Color3.fromRGB(255, 210, 90), icon = "!" },
+        error = { color = Color3.fromRGB(255, 80, 80), icon = "x" },
+        orbit = { color = Color3.fromRGB(190, 120, 255), icon = "⟳" },
+    }
+
+    self._conn = Connection.new(RunService.RenderStepped:Connect(function(dt: number)
+        self:_update(dt)
+    end))
+
+    return self
+end
+
+function NotificationSystem:_update(dt: number): ()
+    local ok, vp = pcall(function() return Camera.ViewportSize end)
+    if ok then
+        self._screenSize = Vector2.new(math.max(vp.X, 1), math.max(vp.Y, 1))
+    end
+
+    local scale = 1.0
+    local padX, padY = 14 * scale, 10 * scale
+    local gap = 8 * scale
+    local centerX = self._screenSize.X * 0.5
+    local topY = 35
+    local now = tick()
+    local dead: { number }? = nil
+
+    for i, n in ipairs(self._active) do
+        local age = now - n.born
+        local life = n.life
+        local fadeIn = math.clamp(age / 0.14, 0, 1)
+        local fadeOut = math.clamp((life - age) / 0.22, 0, 1)
+        local alpha = math.min(fadeIn, fadeOut)
+
+        n.offY = n.offY + (0 - n.offY) * math.clamp(1 - math.exp(-0.35 * dt * 12), 0, 1)
+
+        if age > life then
+            dead = dead or {}
+            table.insert(dead, i)
+            for _, obj in ipairs(n.objects) do
+                pcall(function() obj.Visible = false end)
+            end
+        else
+            n.textObj.Text = n.msg
+            n.textObj.Color = Color3.fromRGB(255, 255, 255)
+            local tb = n.textObj.TextBounds
+            local bw = tb.X + padX * 2 + 34 * scale
+            local bh = math.max(tb.Y + padY * 2, 32)
+            local px, py = centerX - bw / 2, topY + (i - 1) * (bh + gap) + n.offY
+
+            n.bg.Size = Vector2.new(bw, bh)
+            n.bg.Position = Vector2.new(px, py)
+            n.bg.Color = Color3.fromRGB(30, 30, 30)
+            n.bg.Transparency = 0.95 * alpha
+            n.bg.Visible = true
+
+            n.bord.Size = Vector2.new(bw, bh)
+            n.bord.Position = Vector2.new(px, py)
+            n.bord.Color = Color3.fromRGB(20, 20, 20)
+            n.bord.Transparency = 0.8 * alpha
+            n.bord.Visible = true
+
+            n.icon.Text = n.iconStr
+            n.icon.Color = n.color
+            n.icon.Position = Vector2.new(px + 18 * scale, py + bh / 2 - 7 * scale)
+            n.icon.Transparency = 0.95 * alpha
+            n.icon.Visible = true
+
+            n.textObj.Position = Vector2.new(px + 34 * scale, py + padY - 1)
+            n.textObj.Transparency = 0.95 * alpha
+            n.textObj.Visible = true
+
+            local pct = math.clamp(1 - (age / life), 0, 1)
+            n.prog.Size = Vector2.new(bw * pct, 2)
+            n.prog.Position = Vector2.new(px, py + bh - 2)
+            n.prog.Color = n.color
+            n.prog.Transparency = 0.8 * alpha
+            n.prog.Visible = true
+        end
+    end
+
+    if dead then
+        for j = #dead, 1, -1 do
+            local idx = dead[j]
+            local n = table.remove(self._active, idx)
+            for _, obj in ipairs(n.objects) do
+                pcall(function() obj.Visible = false end)
+                self._pool:Release(obj)
+            end
+        end
+    end
+end
+
+function NotificationSystem:Notify(config: NotificationConfig): ()
+    if not DrawingCapable then return end
+
+    local style = self._styles[config.Type or "info"] or self._styles.info
+    local msg = string.sub(tostring(config.Message), 1, 160)
+    local life = config.Duration or 3
+
+    local bg = self._pool:Acquire({ Filled = true, ZIndex = 11001 })
+    local bord = self._pool:Acquire({ Filled = false, Thickness = 1, ZIndex = 11002 })
+    local tx = self._pool:Acquire({ Size = 14, ZIndex = 11003, Outline = true, Font = DrawingFonts.Plex })
+    local icon = self._pool:Acquire({ Size = 14, ZIndex = 11003, Center = true, Outline = true, Font = DrawingFonts.Plex })
+    local prog = self._pool:Acquire({ Filled = true, ZIndex = 11002 })
+
+    if not (bg and bord and tx and icon and prog) then return end
+
+    table.insert(self._active, {
+        msg = msg,
+        born = tick(),
+        life = life,
+        color = style.color,
+        iconStr = style.icon,
+        offY = -18,
+        objects = { bg, bord, tx, icon, prog },
+        bg = bg,
+        bord = bord,
+        textObj = tx,
+        icon = icon,
+        prog = prog,
+    })
+end
+
+function NotificationSystem:Destroy(): ()
+    if self._conn then
+        self._conn:Disconnect()
+    end
+    self._pool:Clear()
+    table.clear(self._active)
+end
+
+-- ── CONFIG SYSTEM ──
+local ConfigSystem = {}
+ConfigSystem.__index = ConfigSystem
+export type ConfigSystem = typeof(setmetatable({} :: {
+    _fileName: string?,
+    _data: { [string]: any },
+    _dirty: boolean,
+}, ConfigSystem))
+
+function ConfigSystem.new(fileName: string?): ConfigSystem
+    local self = setmetatable({}, ConfigSystem)
+    self._fileName = fileName
+    self._data = {}
+    self._dirty = false
+    if fileName then
+        self:Load()
+    end
+    return self
+end
+
+function ConfigSystem:Load(): boolean
+    if not self._fileName then return false end
+    local ok, content = pcall(function()
+        if readfile then
+            return readfile(self._fileName)
+        end
+        return nil
+    end)
+    if ok and content then
+        local parseOk, data = pcall(HttpService.JSONDecode, HttpService, content)
+        if parseOk and typeof(data) == "table" then
+            self._data = data :: { [string]: any }
+            return true
+        end
+    end
+    return false
+end
+
+function ConfigSystem:Save(): boolean
+    if not self._fileName then return false end
+    local ok, content = pcall(function()
+        return HttpService:JSONEncode(self._data)
+    end)
+    if ok and content and writefile then
+        local writeOk = pcall(function()
+            writefile(self._fileName, content)
+        end)
+        return writeOk
+    end
+    return false
+end
+
+function ConfigSystem:Get(key: string): any
+    return self._data[key]
+end
+
+function ConfigSystem:Set(key: string, value: any): ()
+    self._data[key] = value
+    self._dirty = true
+    if self._fileName then
+        task.defer(function()
+            if self._dirty then
+                self._dirty = false
+                self:Save()
+            end
+        end)
+    end
+end
+
+function ConfigSystem:Destroy(): ()
+    if self._dirty then
+        self:Save()
+    end
+    table.clear(self._data)
+end
+
+-- ── HELPERS ──
+local function mk(className: string, props: { [string]: any }?): Instance?
+    local ok, inst = pcall(Instance.new, className)
+    if not ok or not inst then return nil end
+    if props then
+        for k, v in pairs(props) do
+            pcall(function() (inst :: any)[k] = v end)
+        end
+    end
+    return inst
+end
+
+local function addTooltip(target: GuiObject, text: string?, ttFrame: Frame, ttText: TextLabel): ()
+    if not text or text == "" then return end
+    Connection.new(target.MouseEnter:Connect(function()
+        ttText.Text = " " .. text .. " "
+        ttFrame.Size = UDim2.new(0, ttText.TextBounds.X + 8, 0, 22)
+        ttFrame.Visible = true
+    end))
+    Connection.new(target.MouseLeave:Connect(function()
+        ttFrame.Visible = false
+    end))
+end
+
+local function addHover(
+    btn: GuiObject,
+    tweenEngine: TweenEngine,
+    normal: Color3,
+    hover: Color3
+): ()
+    Connection.new(btn.MouseEnter:Connect(function()
+        tweenEngine:Tween(btn, { BackgroundColor3 = hover }, 0.15)
+    end))
+    Connection.new(btn.MouseLeave:Connect(function()
+        tweenEngine:Tween(btn, { BackgroundColor3 = normal }, 0.15)
+    end))
+end
+
+-- ── MAIN MODULE ──
+local DespairUI = {}
+DespairUI.__index = DespairUI
+
+export type DespairUI = typeof(setmetatable({} :: {
+    _connections: { Connection },
+    _windows: { ScreenGui },
+    _notifications: NotificationSystem,
+    _config: ConfigSystem?,
+    _theme: ThemeColors,
+    _accent: Color3,
+    _tweenEngine: TweenEngine,
+}, DespairUI))
+
+export type Window = typeof(setmetatable({} :: {
+    _screenGui: ScreenGui,
+    _root: Frame,
+    _topbar: Frame,
+    _sidebar: Frame,
+    _content: Frame,
+    _searchBox: TextBox,
+    _tabList: ScrollingFrame,
+    _tabs: { Tab },
+    _activeTab: Tab?,
+    _elements: { any },
+    _keybinds: { [string]: string },
+    _keybindWidget: Frame?,
+    _config: WindowConfig,
+    _theme: ThemeColors,
+    _accent: Color3,
+    _tweenEngine: TweenEngine,
+    _notifications: NotificationSystem,
+    _configSystem: ConfigSystem?,
+    _tooltipFrame: Frame,
+    _tooltipText: TextLabel,
+    _dragging: boolean,
+    _dragStart: Vector2,
+    _dragPos: UDim2,
+    _visible: boolean,
+}, Window))
+
+export type Tab = typeof(setmetatable({} :: {
+    _name: string,
+    _button: TextButton,
+    _indicator: Frame,
+    _page: ScrollingFrame,
+    _layout: UIListLayout,
+    _window: Window,
+}, Tab))
+
+local ModuleInstance: DespairUI = setmetatable({
+    _connections = {},
+    _windows = {},
+    _notifications = NotificationSystem.new(),
+    _config = nil,
+    _theme = Themes.Default,
+    _accent = Color3.fromRGB(255, 140, 0),
+    _tweenEngine = TweenEngine.new(),
+}, DespairUI) :: any
+
+-- ── WINDOW CREATION ──
+function DespairUI:CreateWindow(config: WindowConfig): Window
+    config = config or {}
+    local accent: Color3 = config.Accent or self._accent
+    local themeName: ThemeName = config.Theme or "Default"
+    local theme: ThemeColors = Themes[themeName] or Themes.Default
+    local useConfig: string? = config.UseConfig
+    local configSystem: ConfigSystem? = useConfig and ConfigSystem.new(useConfig) or nil
+
+    local coreGui: Instance = (function()
+        local ok, hui = pcall(gethui)
+        if ok and hui then return hui end
+        ok, hui = pcall(function() return game:GetService("CoreGui") end)
+        if ok and hui then return hui end
+        return LocalPlayer:WaitForChild("PlayerGui")
+    end)()
+
+    local sg: ScreenGui = mk("ScreenGui", {
+        Parent = coreGui,
+        Name = "DespairUI_" .. tostring(tick()),
+        ResetOnSpawn = false,
+        IgnoreGuiInset = true,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+    }) :: ScreenGui
+
+    table.insert(self._windows, sg)
+
+    -- Tooltip
+    local ttFrame: Frame = mk("Frame", {
+        Parent = sg,
+        Size = UDim2.new(0, 0, 0, 22),
+        BackgroundColor3 = theme.PanelDark,
+        BorderColor3 = theme.Border,
+        BorderSizePixel = 1,
+        Visible = false,
+        ZIndex = 10000,
+    }) :: Frame
+    local ttText: TextLabel = mk("TextLabel", {
+        Parent = ttFrame,
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Font = Enum.Font.Ubuntu,
+        TextSize = 12,
+        TextColor3 = theme.Text,
+        ZIndex = 10001,
+    }) :: TextLabel
+
+    local ttConn = Connection.new(RunService.RenderStepped:Connect(function()
+        if ttFrame.Visible then
+            local mp = UserInputService:GetMouseLocation()
+            ttFrame.Position = UDim2.new(0, mp.X + 12, 0, mp.Y + 12)
+        end
+    end))
+    table.insert(self._connections, ttConn)
+
+    -- Main Frame
+    local winW: number = config.Size and config.Size.X or 680
+    local winH: number = config.Size and config.Size.Y or 480
+    local root: Frame = mk("Frame", {
+        Parent = sg,
+        Size = UDim2.new(0, winW, 0, winH),
+        Position = config.Position or UDim2.new(0.5, -winW / 2, 0.5, -winH / 2),
+        BackgroundColor3 = theme.Bg,
+        BorderColor3 = theme.Border,
+        BorderSizePixel = 1,
+        ZIndex = 5,
+    }) :: Frame
+
+    -- Topbar
+    local topbar: Frame = mk("Frame", {
+        Parent = root,
+        Size = UDim2.new(1, 0, 0, 30),
+        BackgroundColor3 = theme.Topbar,
+        BorderSizePixel = 0,
+    }) :: Frame
+    mk("Frame", {
+        Parent = topbar,
+        Size = UDim2.new(1, 0, 0, 1),
+        Position = UDim2.new(0, 0, 1, 0),
+        BackgroundColor3 = theme.Border,
+        BorderSizePixel = 0,
+    })
+    mk("TextLabel", {
+        Parent = topbar,
+        Position = UDim2.new(0, 10, 0, 0),
+        Size = UDim2.new(1, -10, 1, 0),
+        BackgroundTransparency = 1,
+        Text = config.Title or "Despair UI",
+        Font = Enum.Font.Ubuntu,
+        TextSize = 14,
+        TextColor3 = theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    })
+
+    -- Dragging
+    local dragBtn: TextButton = mk("TextButton", {
+        Parent = topbar,
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "",
+    }) :: TextButton
+
+    local window: Window = setmetatable({
+        _screenGui = sg,
+        _root = root,
+        _topbar = topbar,
+        _sidebar = nil :: any,
+        _content = nil :: any,
+        _searchBox = nil :: any,
+        _tabList = nil :: any,
+        _tabs = {},
+        _activeTab = nil,
+        _elements = {},
+        _keybinds = {},
+        _keybindWidget = nil,
+        _config = config,
+        _theme = theme,
+        _accent = accent,
+        _tweenEngine = self._tweenEngine,
+        _notifications = self._notifications,
+        _configSystem = configSystem,
+        _tooltipFrame = ttFrame,
+        _tooltipText = ttText,
+        _dragging = false,
+        _dragStart = Vector2.zero,
+        _dragPos = UDim2.new(),
+        _visible = true,
+    }, Window) :: any
+
+    Connection.new(dragBtn.InputBegan:Connect(function(input: InputObject)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            window._dragging = true
+            window._dragStart = Vector2.new(input.Position.X, input.Position.Y)
+            window._dragPos = root.Position
+        end
+    end))
+    Connection.new(UserInputService.InputChanged:Connect(function(input: InputObject)
+        if window._dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = Vector2.new(input.Position.X, input.Position.Y) - window._dragStart
+            root.Position = UDim2.new(
+                window._dragPos.X.Scale,
+                window._dragPos.X.Offset + delta.X,
+                window._dragPos.Y.Scale,
+                window._dragPos.Y.Offset + delta.Y
+            )
+        end
+    end))
+    Connection.new(dragBtn.InputEnded:Connect(function(input: InputObject)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            window._dragging = false
+        end
+    end))
+
+    -- Sidebar
+    local sidebar: Frame = mk("Frame", {
+        Parent = root,
+        Position = UDim2.new(0, 0, 0, 31),
+        Size = UDim2.new(0, 140, 1, -31),
+        BackgroundColor3 = theme.Sidebar,
+        BorderSizePixel = 0,
+    }) :: Frame
+    window._sidebar = sidebar
+    mk("Frame", {
+        Parent = sidebar,
+        Size = UDim2.new(0, 1, 1, 0),
+        Position = UDim2.new(1, 0, 0, 0),
+        BackgroundColor3 = theme.Border,
+        BorderSizePixel = 0,
+    })
+
+    -- Search
+    local searchBox: TextBox = mk("TextBox", {
+        Parent = sidebar,
+        Size = UDim2.new(1, -10, 0, 24),
+        Position = UDim2.new(0, 5, 0, 5),
+        BackgroundColor3 = theme.PanelDark,
+        BorderColor3 = theme.Border,
+        TextColor3 = theme.Text,
+        PlaceholderText = "Search...",
+        Font = Enum.Font.Ubuntu,
+        TextSize = 12,
+    }) :: TextBox
+    window._searchBox = searchBox
+
+    local tabList: ScrollingFrame = mk("ScrollingFrame", {
+        Parent = sidebar,
+        Position = UDim2.new(0, 0, 0, 34),
+        Size = UDim2.new(1, 0, 1, -34),
+        BackgroundTransparency = 1,
+        ScrollBarThickness = 2,
+        ScrollBarImageColor3 = accent,
+        BorderSizePixel = 0,
+    }) :: ScrollingFrame
+    window._tabList = tabList
+    mk("UIListLayout", {
+        Parent = tabList,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    })
+
+    -- Content
+    local content: Frame = mk("Frame", {
+        Parent = root,
+        Position = UDim2.new(0, 141, 0, 31),
+        Size = UDim2.new(1, -141, 1, -31),
+        BackgroundTransparency = 1,
+    }) :: Frame
+    window._content = content
+
+    -- Search functionality
+    Connection.new(searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        local query: string = string.lower(searchBox.Text)
+        for _, el in ipairs(window._elements) do
+            if query == "" then
+                el.Instance.Visible = true
+            else
+                el.Instance.Visible = string.find(string.lower(el.Name), query) ~= nil
+            end
+        end
+        for _, tab in ipairs(window._tabs) do
+            tab._layout:ApplyLayout()
+        end
+    end))
+
+    -- Toggle Key
+    local toggleKey: Enum.KeyCode = config.ToggleKey or Enum.KeyCode.Insert
+    Connection.new(UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
+        if gpe or UserInputService:GetFocusedTextBox() then return end
+        if input.KeyCode == toggleKey then
+            window._visible = not window._visible
+            root.Visible = window._visible
+        end
+    end))
+
+    -- Keybind Widget
+    window:_BuildKeybindWidget()
+
+    return window
+end
+
+-- ── WINDOW INTERNALS ──
+function Window:_BuildKeybindWidget(): ()
+    local theme = self._theme
+    local accent = self._accent
+
+    local widget: Frame = mk("Frame", {
+        Parent = self._screenGui,
+        Position = UDim2.new(0, 20, 0, Camera.ViewportSize.Y - 100),
+        Size = UDim2.new(0, 180, 0, 30),
+        BackgroundColor3 = theme.PanelDark,
+        BorderColor3 = accent,
+        BorderSizePixel = 1,
+        ZIndex = 100,
+    }) :: Frame
+    self._keybindWidget = widget
+
+    local header: TextLabel = mk("TextLabel", {
+        Parent = widget,
+        Size = UDim2.new(1, 0, 0, 30),
+        BackgroundTransparency = 1,
+        Text = " Keybinds",
+        Font = Enum.Font.Ubuntu,
+        TextSize = 13,
+        TextColor3 = accent,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }) :: TextLabel
+
+    local list: Frame = mk("Frame", {
+        Parent = widget,
+        Position = UDim2.new(0, 0, 0, 30),
+        Size = UDim2.new(1, 0, 1, -30),
+        BackgroundTransparency = 1,
+    }) :: Frame
+    mk("UIListLayout", {
+        Parent = list,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    })
+
+    local dragging = false
+    local dragStart = Vector2.zero
+    local dragPos = UDim2.new()
+    Connection.new(header.InputBegan:Connect(function(input: InputObject)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = Vector2.new(input.Position.X, input.Position.Y)
+            dragPos = widget.Position
+        end
+    end))
+    Connection.new(UserInputService.InputChanged:Connect(function(input: InputObject)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = Vector2.new(input.Position.X, input.Position.Y) - dragStart
+            widget.Position = UDim2.new(
+                dragPos.X.Scale, dragPos.X.Offset + delta.X,
+                dragPos.Y.Scale, dragPos.Y.Offset + delta.Y
+            )
+        end
+    end))
+    Connection.new(header.InputEnded:Connect(function(input: InputObject)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end))
+
+    local kbLabels: { TextLabel } = {}
+    Connection.new(RunService.RenderStepped:Connect(function()
+        local h = 30
+        local i = 1
+        for name, k in pairs(self._keybinds) do
+            local str = string.format(" %s: [%s]", name, k)
+            if not kbLabels[i] then
+                kbLabels[i] = mk("TextLabel", {
+                    Parent = list,
+                    Size = UDim2.new(1, 0, 0, 20),
+                    BackgroundTransparency = 1,
+                    Font = Enum.Font.Ubuntu,
+                    TextSize = 12,
+                    TextColor3 = theme.Text,
+                    TextXAlignment = Enum.TextXAlignment.Left,
+                }) :: TextLabel
+            end
+            kbLabels[i].Text = str
+            kbLabels[i].Visible = true
+            h = h + 20
+            i = i + 1
+        end
+        for j = i, #kbLabels do
+            kbLabels[j].Visible = false
+        end
+        widget.Size = UDim2.new(0, 180, 0, h + 5)
+    end))
+end
+
+function Window:_RegisterElement(instance: GuiObject, name: string, api: any): any
+    table.insert(self._elements, { Instance = instance, Name = name, API = api })
+    return api
+end
+
+function Window:_SaveValue(key: string, value: any): ()
+    if self._configSystem then
+        self._configSystem:Set(key, value)
+    end
+end
+
+function Window:_LoadValue(key: string): any
+    if self._configSystem then
+        return self._configSystem:Get(key)
+    end
+    return nil
+end
+
+-- ── TAB METHODS ──
+function Window:AddTab(name: string): Tab
+    local theme = self._theme
+    local accent = self._accent
+
+    local btn: TextButton = mk("TextButton", {
+        Parent = self._tabList,
+        Size = UDim2.new(1, 0, 0, 30),
+        BackgroundColor3 = theme.Sidebar,
+        BorderSizePixel = 0,
+        Text = "  " .. name,
+        Font = Enum.Font.Ubuntu,
+        TextSize = 13,
+        TextColor3 = theme.SubText,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        AutoButtonColor = false,
+    }) :: TextButton
+
+    local indicator: Frame = mk("Frame", {
+        Parent = btn,
+        Size = UDim2.new(0, 3, 1, 0),
+        BackgroundColor3 = accent,
+        BorderSizePixel = 0,
+        Visible = false,
+    }) :: Frame
+
+    local page: ScrollingFrame = mk("ScrollingFrame", {
+        Parent = self._content,
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Visible = false,
+        ScrollBarThickness = 4,
+        ScrollBarImageColor3 = accent,
+        BorderSizePixel = 0,
+    }) :: ScrollingFrame
+
+    local layout: UIListLayout = mk("UIListLayout", {
+        Parent = page,
+        SortOrder = Enum.SortOrder.LayoutOrder,
+        Padding = UDim.new(0, 6),
+    }) :: UIListLayout
+
+    mk("UIPadding", {
+        Parent = page,
+        PaddingTop = UDim.new(0, 10),
+        PaddingLeft = UDim.new(0, 10),
+        PaddingRight = UDim.new(0, 10),
+        PaddingBottom = UDim.new(0, 10),
+    })
+
+    Connection.new(layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        page.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
+    end))
+
+    local tab: Tab = setmetatable({
+        _name = name,
+        _button = btn,
+        _indicator = indicator,
+        _page = page,
+        _layout = layout,
+        _window = self,
+    }, Tab) :: any
+
+    table.insert(self._tabs, tab)
+
+    local function selectTab()
+        if self._activeTab == tab then return end
+        if self._activeTab then
+            self._activeTab._page.Visible = false
+            self._activeTab._button.BackgroundColor3 = theme.Sidebar
+            self._activeTab._button.TextColor3 = theme.SubText
+            self._activeTab._indicator.Visible = false
+        end
+        self._activeTab = tab
+        tab._page.Visible = true
+        tab._button.BackgroundColor3 = theme.PanelDark
+        tab._button.TextColor3 = theme.Text
+        tab._indicator.Visible = true
+    end
+
+    Connection.new(btn.MouseButton1Click:Connect(selectTab))
+
+    if #self._tabs == 1 then
+        task.defer(selectTab)
+    end
+
+    return tab
+end
+
+-- ── TAB ELEMENTS ──
+function Tab:AddLabel(config: { Text: string, Color: Color3? }): { SetText: (string) -> () }
+    local theme = self._window._theme
+    local accent = self._window._accent
+
+    local lbl: TextLabel = mk("TextLabel", {
+        Parent = self._page,
+        Size = UDim2.new(1, 0, 0, 20),
+        BackgroundTransparency = 1,
+        Text = config.Text,
+        Font = Enum.Font.Ubuntu,
+        TextSize = 13,
+        TextColor3 = config.Color or accent,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }) :: TextLabel
+
+    local api = {
+        SetText = function(text: string)
+            lbl.Text = text
+        end,
+    }
+
+    self._window:_RegisterElement(lbl, config.Text, api)
+    return api
+end
+
+function Tab:AddParagraph(config: { Title: string?, Content: string, Color: Color3? }): { SetContent: (string) -> () }
+    local theme = self._window._theme
+
+    local container: Frame = mk("Frame", {
+        Parent = self._page,
+        Size = UDim2.new(1, 0, 0, 40),
+        BackgroundTransparency = 1,
+    }) :: Frame
+
+    if config.Title then
+        mk("TextLabel", {
+            Parent = container,
+            Size = UDim2.new(1, 0, 0, 16),
+            BackgroundTransparency = 1,
+            Text = config.Title,
+            Font = Enum.Font.Ubuntu,
+            TextSize = 13,
+            TextColor3 = theme.Text,
+            TextXAlignment = Enum.TextXAlignment.Left,
+        })
+    end
+
+    local content: TextLabel = mk("TextLabel", {
+        Parent = container,
+        Position = UDim2.new(0, 0, 0, config.Title and 18 or 0),
+        Size = UDim2.new(1, 0, 1, config.Title and -18 or 0),
+        BackgroundTransparency = 1,
+        Text = config.Content,
+        Font = Enum.Font.Ubuntu,
+        TextSize = 12,
+        TextColor3 = config.Color or theme.SubText,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextWrapped = true,
+    }) :: TextLabel
+
+    local api = {
+        SetContent = function(text: string)
+            content.Text = text
+            container.Size = UDim2.new(1, 0, 0, math.max(40, content.TextBounds.Y + (config.Title and 22 or 4)))
+        end,
+    }
+
+    self._window:_RegisterElement(container, config.Title or config.Content, api)
+    return api
+end
+
+function Tab:AddSection(config: { Text: string }): { SetText: (string) -> () }
+    local theme = self._window._theme
+    local accent = self._window._accent
+
+    local container: Frame = mk("Frame", {
+        Parent = self._page,
+        Size = UDim2.new(1, 0, 0, 26),
+        BackgroundTransparency = 1,
+    }) :: Frame
+
+    mk("Frame", {
+        Parent = container,
+        Size = UDim2.new(1, 0, 0, 1),
+        Position = UDim2.new(0, 0, 0.5, 0),
+        BackgroundColor3 = theme.Border,
+        BorderSizePixel = 0,
+    })
+
+    local lbl: TextLabel = mk("TextLabel", {
+        Parent = container,
+        Size = UDim2.new(0, 0, 1, 0),
+        Position = UDim2.new(0, 6, 0, 0),
+        BackgroundColor3 = theme.Bg,
+        BorderSizePixel = 0,
+        Text = " " .. config.Text .. " ",
+        Font = Enum.Font.Ubuntu,
+        TextSize = 12,
+        TextColor3 = accent,
+    }) :: TextLabel
+
+    local api = {
+        SetText = function(text: string)
+            lbl.Text = " " .. text .. " "
+        end,
+    }
+
+    self._window:_RegisterElement(container, config.Text, api)
+    return api
+end
+
+function Tab:AddToggle(config: ToggleConfig): {
+    Set: (boolean, boolean?) -> (),
+    Get: () -> boolean,
+    Destroy: () -> (),
+}
+    local theme = self._window._theme
+    local accent = self._window._accent
+    local tweenEngine = self._window._tweenEngine
+
+    local configKey = self._name .. "_" .. config.Text .. "_toggle"
+    local savedValue = self._window:_LoadValue(configKey)
+    local state: boolean = if savedValue ~= nil then savedValue else (config.Default or false)
+
+    local row: Frame = mk("Frame", {
+        Parent = self._page,
+        Size = UDim2.new(1, 0, 0, 24),
+        BackgroundTransparency = 1,
+    }) :: Frame
+
+    local box: TextButton = mk("TextButton", {
+        Parent = row,
+        Size = UDim2.new(0, 16, 0, 16),
+        Position = UDim2.new(0, 0, 0.5, -8),
+        BackgroundColor3 = theme.PanelDark,
+        BorderColor3 = theme.Border,
+        Text = "",
+        AutoButtonColor = false,
+    }) :: TextButton
+
+    local fill: Frame = mk("Frame", {
+        Parent = box,
+        Size = UDim2.new(1, -4, 1, -4),
+        Position = UDim2.new(0, 2, 0, 2),
+        BackgroundColor3 = config.Risky and theme.Risky or accent,
+        BorderSizePixel = 0,
+        Visible = state,
+    }) :: Frame
+
+    local lbl: TextLabel = mk("TextLabel", {
+        Parent = row,
+        Position = UDim2.new(0, 24, 0, 0),
+        Size = UDim2.new(1, -24, 1, 0),
+        BackgroundTransparency = 1,
+        Text = config.Text,
+        Font = Enum.Font.Ubuntu,
+        TextSize = 13,
+        TextColor3 = config.Risky and theme.Risky or theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }) :: TextLabel
+
+    addTooltip(row, config.Tip, self._window._tooltipFrame, self._window._tooltipText)
+
+    local function update(silent: boolean?)
+        fill.Visible = state
+        if config.Callback and not silent then
+            pcall(config.Callback, state)
+        end
+        self._window:_SaveValue(configKey, state)
+    end
+
+    Connection.new(box.MouseButton1Click:Connect(function()
+        state = not state
+        update()
+    end))
+
+    update(true)
+
+    local api = {
+        Set = function(value: boolean, silent: boolean?)
+            state = value
+            update(silent)
+        end,
+        Get = function(): boolean
+            return state
+        end,
+        Destroy = function()
+            row:Destroy()
+        end,
+    }
+
+    self._window:_RegisterElement(row, config.Text, api)
+    return api
+end
+
+function Tab:AddSlider(config: SliderConfig): {
+    Set: (number, boolean?) -> (),
+    Get: () -> number,
+    Destroy: () -> (),
+}
+    local theme = self._window._theme
+    local accent = self._window._accent
+
+    local configKey = self._name .. "_" .. config.Text .. "_slider"
+    local savedValue = self._window:_LoadValue(configKey)
+    local val: number = if savedValue ~= nil then savedValue else (config.Default or config.Min)
+    local min: number = config.Min
+    local max: number = config.Max
+    local dec: number = config.Decimals or 0
+
+    local row: Frame = mk("Frame", {
+        Parent = self._page,
+        Size = UDim2.new(1, 0, 0, config.Compact and 24 or 36),
+        BackgroundTransparency = 1,
+    }) :: Frame
+
+    local lbl: TextLabel = mk("TextLabel", {
+        Parent = row,
+        Position = UDim2.new(0, 0, 0, 0),
+        Size = UDim2.new(config.Compact and 0.3 or 0.5, 0, 0, 16),
+        BackgroundTransparency = 1,
+        Text = config.Text,
+        Font = Enum.Font.Ubuntu,
+        TextSize = 13,
+        TextColor3 = theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }) :: TextLabel
+
+    local valBox: TextBox = mk("TextBox", {
+        Parent = row,
+        Position = UDim2.new(1, -50, 0, 0),
+        Size = UDim2.new(0, 50, 0, 16),
+        BackgroundTransparency = 1,
+        Text = "",
+        Font = Enum.Font.Ubuntu,
+        TextSize = 13,
+        TextColor3 = accent,
+        TextXAlignment = Enum.TextXAlignment.Right,
+    }) :: TextBox
+
+    addTooltip(row, config.Tip, self._window._tooltipFrame, self._window._tooltipText)
+
+    local track: TextButton = mk("TextButton", {
+        Parent = row,
+        Position = UDim2.new(0, 0, 0, config.Compact and 14 or 22),
+        Size = UDim2.new(1, 0, 0, 8),
+        BackgroundColor3 = theme.PanelDark,
+        BorderColor3 = theme.Border,
+        Text = "",
+        AutoButtonColor = false,
+    }) :: TextButton
+
+    local fill: Frame = mk("Frame", {
+        Parent = track,
+        Size = UDim2.new(0, 0, 1, 0),
+        BackgroundColor3 = accent,
+        BorderSizePixel = 0,
+    }) :: Frame
+
+    local dragging = false
+
+    local function setValue(v: number, silent: boolean?)
+        val = math.clamp(v, min, max)
+        local mult = 10 ^ dec
+        val = math.floor(val * mult + 0.5) / mult
+        valBox.Text = tostring(val) .. (config.Suffix or "")
+        fill.Size = UDim2.new((max == min) and 0 or (val - min) / (max - min), 0, 1, 0)
+        if config.Callback and not silent then
+            pcall(config.Callback, val)
+        end
+        self._window:_SaveValue(configKey, val)
+    end
+
+    local function updateDrag(input: InputObject)
+        local pct = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
+        setValue(min + (max - min) * pct)
+    end
+
+    Connection.new(track.InputBegan:Connect(function(input: InputObject)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            updateDrag(input)
+        end
+    end))
+    Connection.new(UserInputService.InputChanged:Connect(function(input: InputObject)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            updateDrag(input)
+        end
+    end))
+    Connection.new(UserInputService.InputEnded:Connect(function(input: InputObject)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end))
+    Connection.new(valBox.FocusLost:Connect(function()
+        local num = tonumber(string.gsub(valBox.Text, "[^%d%.%-]", ""))
+        if num then
+            setValue(num)
+        else
+            setValue(val, true)
+        end
+    end))
+
+    setValue(val, true)
+
+    local api = {
+        Set = function(value: number, silent: boolean?)
+            setValue(value, silent)
+        end,
+        Get = function(): number
+            return val
+        end,
+        Destroy = function()
+            row:Destroy()
+        end,
+    }
+
+    self._window:_RegisterElement(row, config.Text, api)
+    return api
+end
+
+function Tab:AddDropdown(config: DropdownConfig): {
+    Set: (string, boolean?) -> (),
+    Get: () -> string,
+    Refresh: ({ string }, boolean?) -> (),
+    Destroy: () -> (),
+}
+    local theme = self._window._theme
+    local accent = self._window._accent
+
+    local configKey = self._name .. "_" .. config.Text .. "_dropdown"
+    local savedValue = self._window:_LoadValue(configKey)
+    local state: string = if savedValue ~= nil then savedValue else (config.Default or config.Items[1] or "")
+
+    local row: Frame = mk("Frame", {
+        Parent = self._page,
+        Size = UDim2.new(1, 0, 0, 44),
+        BackgroundTransparency = 1,
+    }) :: Frame
+
+    local lbl: TextLabel = mk("TextLabel", {
+        Parent = row,
+        Position = UDim2.new(0, 0, 0, 0),
+        Size = UDim2.new(1, 0, 0, 16),
+        BackgroundTransparency = 1,
+        Text = config.Text,
+        Font = Enum.Font.Ubuntu,
+        TextSize = 13,
+        TextColor3 = theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }) :: TextLabel
+
+    addTooltip(row, config.Tip, self._window._tooltipFrame, self._window._tooltipText)
+
+    local btn: TextButton = mk("TextButton", {
+        Parent = row,
+        Position = UDim2.new(0, 0, 0, 20),
+        Size = UDim2.new(1, 0, 0, 24),
+        BackgroundColor3 = theme.PanelDark,
+        BorderColor3 = theme.Border,
+        Text = "",
+        AutoButtonColor = false,
+    }) :: TextButton
+
+    addHover(btn, self._window._tweenEngine, theme.PanelDark, theme.Hover)
+
+    local valTxt: TextLabel = mk("TextLabel", {
+        Parent = btn,
+        Position = UDim2.new(0, 6, 0, 0),
+        Size = UDim2.new(1, -24, 1, 0),
+        BackgroundTransparency = 1,
+        Text = state,
+        Font = Enum.Font.Ubuntu,
+        TextSize = 12,
+        TextColor3 = theme.SubText,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+    }) :: TextLabel
+
+    mk("TextLabel", {
+        Parent = btn,
+        Position = UDim2.new(1, -16, 0, 0),
+        Size = UDim2.new(0, 12, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "▼",
+        Font = Enum.Font.Ubuntu,
+        TextSize = 10,
+        TextColor3 = theme.SubText,
+    })
+
+    local menuOpen = false
+    local menuFrame: ScrollingFrame? = nil
+
+    local function closeMenu()
+        if menuFrame then
+            pcall(function() menuFrame:Destroy() end)
+            menuFrame = nil
+        end
+        menuOpen = false
+    end
+
+    local function updateDisplay()
+        valTxt.Text = state
+    end
+
+    local function openMenu()
+        if menuOpen then closeMenu() return end
+        menuOpen = true
+
+        menuFrame = mk("ScrollingFrame", {
+            Parent = self._window._screenGui,
+            Size = UDim2.new(0, btn.AbsoluteSize.X, 0, math.min(#config.Items * 24 + 2, 150)),
+            Position = UDim2.new(0, btn.AbsolutePosition.X, 0, btn.AbsolutePosition.Y + btn.AbsoluteSize.Y + 1),
+            BackgroundColor3 = theme.PanelDark,
+            BorderColor3 = theme.Border,
+            ZIndex = 50,
+            ScrollBarThickness = 2,
+            ScrollBarImageColor3 = accent,
+        }) :: ScrollingFrame
+
+        local ml: UIListLayout = mk("UIListLayout", {
+            Parent = menuFrame,
+            SortOrder = Enum.SortOrder.LayoutOrder,
+        }) :: UIListLayout
+
+        Connection.new(ml:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            menuFrame.CanvasSize = UDim2.new(0, 0, 0, ml.AbsoluteContentSize.Y)
+        end))
+
+        for _, item in ipairs(config.Items) do
+            local itBtn: TextButton = mk("TextButton", {
+                Parent = menuFrame,
+                Size = UDim2.new(1, 0, 0, 24),
+                BackgroundTransparency = 1,
+                Text = "  " .. item,
+                Font = Enum.Font.Ubuntu,
+                TextSize = 12,
+                TextColor3 = state == item and accent or theme.Text,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                AutoButtonColor = false,
+            }) :: TextButton
+
+            addHover(itBtn, self._window._tweenEngine, theme.PanelDark, theme.Hover)
+
+            Connection.new(itBtn.MouseButton1Click:Connect(function()
+                state = item
+                updateDisplay()
+                closeMenu()
+                if config.Callback then
+                    pcall(config.Callback, state)
+                end
+                self._window:_SaveValue(configKey, state)
+            end))
+        end
+    end
+
+    Connection.new(btn.MouseButton1Click:Connect(openMenu))
+    Connection.new(UserInputService.InputBegan:Connect(function(input: InputObject)
+        if menuOpen and input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local mp = input.Position
+            local mf = menuFrame :: Frame
+            local bp, bs = btn.AbsolutePosition, btn.AbsoluteSize
+            local inMenu = mp.X >= mf.AbsolutePosition.X and mp.X <= mf.AbsolutePosition.X + mf.AbsoluteSize.X
+                and mp.Y >= mf.AbsolutePosition.Y and mp.Y <= mf.AbsolutePosition.Y + mf.AbsoluteSize.Y
+            local inBtn = mp.X >= bp.X and mp.X <= bp.X + bs.X and mp.Y >= bp.Y and mp.Y <= bp.Y + bs.Y
+            if not inMenu and not inBtn then
+                closeMenu()
+            end
+        end
+    end))
+
+    if config.Callback then
+        pcall(config.Callback, state)
+    end
+
+    local api = {
+        Set = function(value: string, silent: boolean?)
+            state = value
+            updateDisplay()
+            if config.Callback and not silent then
+                pcall(config.Callback, state)
+            end
+            self._window:_SaveValue(configKey, state)
+        end,
+        Get = function(): string
+            return state
+        end,
+        Refresh = function(items: { string }, keepSelection: boolean?)
+            config.Items = items
+            if not keepSelection or table.find(items, state) == nil then
+                state = items[1] or ""
+                updateDisplay()
+                if config.Callback then
+                    pcall(config.Callback, state)
+                end
+            end
+            closeMenu()
+        end,
+        Destroy = function()
+            closeMenu()
+            row:Destroy()
+        end,
+    }
+
+    self._window:_RegisterElement(row, config.Text, api)
+    return api
+end
+
+function Tab:AddMultiDropdown(config: MultiDropdownConfig): {
+    Set: ({ string }, boolean?) -> (),
+    Get: () -> { [string]: boolean },
+    Refresh: ({ string }) -> (),
+    Destroy: () -> (),
+}
+    local theme = self._window._theme
+    local accent = self._window._accent
+
+    local configKey = self._name .. "_" .. config.Text .. "_multidrop"
+    local savedValue = self._window:_LoadValue(configKey)
+    local state: { [string]: boolean } = if savedValue ~= nil then savedValue else {}
+    if config.Default then
+        for _, v in ipairs(config.Default) do
+            state[v] = true
+        end
+    end
+
+    local row: Frame = mk("Frame", {
+        Parent = self._page,
+        Size = UDim2.new(1, 0, 0, 44),
+        BackgroundTransparency = 1,
+    }) :: Frame
+
+    local lbl: TextLabel = mk("TextLabel", {
+        Parent = row,
+        Position = UDim2.new(0, 0, 0, 0),
+        Size = UDim2.new(1, 0, 0, 16),
+        BackgroundTransparency = 1,
+        Text = config.Text,
+        Font = Enum.Font.Ubuntu,
+        TextSize = 13,
+        TextColor3 = theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }) :: TextLabel
+
+    addTooltip(row, config.Tip, self._window._tooltipFrame, self._window._tooltipText)
+
+    local btn: TextButton = mk("TextButton", {
+        Parent = row,
+        Position = UDim2.new(0, 0, 0, 20),
+        Size = UDim2.new(1, 0, 0, 24),
+        BackgroundColor3 = theme.PanelDark,
+        BorderColor3 = theme.Border,
+        Text = "",
+        AutoButtonColor = false,
+    }) :: TextButton
+
+    addHover(btn, self._window._tweenEngine, theme.PanelDark, theme.Hover)
+
+    local valTxt: TextLabel = mk("TextLabel", {
+        Parent = btn,
+        Position = UDim2.new(0, 6, 0, 0),
+        Size = UDim2.new(1, -24, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "",
+        Font = Enum.Font.Ubuntu,
+        TextSize = 12,
+        TextColor3 = theme.SubText,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd,
+    }) :: TextLabel
+
+    mk("TextLabel", {
+        Parent = btn,
+        Position = UDim2.new(1, -16, 0, 0),
+        Size = UDim2.new(0, 12, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "▼",
+        Font = Enum.Font.Ubuntu,
+        TextSize = 10,
+        TextColor3 = theme.SubText,
+    })
+
+    local menuOpen = false
+    local menuFrame: ScrollingFrame? = nil
+
+    local function closeMenu()
+        if menuFrame then
+            pcall(function() menuFrame:Destroy() end)
+            menuFrame = nil
+        end
+        menuOpen = false
+    end
+
+    local function updateDisplay()
+        local selected: { string } = {}
+        for k, v in pairs(state) do
+            if v then table.insert(selected, k) end
+        end
+        valTxt.Text = #selected > 0 and table.concat(selected, ", ") or "None"
+    end
+
+    local function openMenu()
+        if menuOpen then closeMenu() return end
+        menuOpen = true
+
+        menuFrame = mk("ScrollingFrame", {
+            Parent = self._window._screenGui,
+            Size = UDim2.new(0, btn.AbsoluteSize.X, 0, math.min(#config.Items * 24 + 2, 150)),
+            Position = UDim2.new(0, btn.AbsolutePosition.X, 0, btn.AbsolutePosition.Y + btn.AbsoluteSize.Y + 1),
+            BackgroundColor3 = theme.PanelDark,
+            BorderColor3 = theme.Border,
+            ZIndex = 50,
+            ScrollBarThickness = 2,
+            ScrollBarImageColor3 = accent,
+        }) :: ScrollingFrame
+
+        local ml: UIListLayout = mk("UIListLayout", {
+            Parent = menuFrame,
+            SortOrder = Enum.SortOrder.LayoutOrder,
+        }) :: UIListLayout
+
+        Connection.new(ml:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            menuFrame.CanvasSize = UDim2.new(0, 0, 0, ml.AbsoluteContentSize.Y)
+        end))
+
+        for _, item in ipairs(config.Items) do
+            local itBtn: TextButton = mk("TextButton", {
+                Parent = menuFrame,
+                Size = UDim2.new(1, 0, 0, 24),
+                BackgroundTransparency = 1,
+                Text = (state[item] and "✓ " or "   ") .. item,
+                Font = Enum.Font.Ubuntu,
+                TextSize = 12,
+                TextColor3 = state[item] and accent or theme.Text,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                AutoButtonColor = false,
+            }) :: TextButton
+
+            addHover(itBtn, self._window._tweenEngine, theme.PanelDark, theme.Hover)
+
+            Connection.new(itBtn.MouseButton1Click:Connect(function()
+                state[item] = not state[item]
+                itBtn.Text = (state[item] and "✓ " or "   ") .. item
+                itBtn.TextColor3 = state[item] and accent or theme.Text
+                updateDisplay()
+                if config.Callback then
+                    pcall(config.Callback, state)
+                end
+                self._window:_SaveValue(configKey, state)
+            end))
+        end
+    end
+
+    Connection.new(btn.MouseButton1Click:Connect(openMenu))
+    Connection.new(UserInputService.InputBegan:Connect(function(input: InputObject)
+        if menuOpen and input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local mp = input.Position
+            local mf = menuFrame :: Frame
+            local bp, bs = btn.AbsolutePosition, btn.AbsoluteSize
+            local inMenu = mp.X >= mf.AbsolutePosition.X and mp.X <= mf.AbsolutePosition.X + mf.AbsoluteSize.X
+                and mp.Y >= mf.AbsolutePosition.Y and mp.Y <= mf.AbsolutePosition.Y + mf.AbsoluteSize.Y
+            local inBtn = mp.X >= bp.X and mp.X <= bp.X + bs.X and mp.Y >= bp.Y and mp.Y <= bp.Y + bs.Y
+            if not inMenu and not inBtn then
+                closeMenu()
+            end
+        end
+    end))
+
+    updateDisplay()
+    if config.Callback then
+        pcall(config.Callback, state)
+    end
+
+    local api = {
+        Set = function(values: { string }, silent: boolean?)
+            table.clear(state)
+            for _, v in ipairs(values) do
+                state[v] = true
+            end
+            updateDisplay()
+            if config.Callback and not silent then
+                pcall(config.Callback, state)
+            end
+            self._window:_SaveValue(configKey, state)
+        end,
+        Get = function(): { [string]: boolean }
+            return state
+        end,
+        Refresh = function(items: { string })
+            config.Items = items
+            local newState: { [string]: boolean } = {}
+            for k, v in pairs(state) do
+                if table.find(items, k) then
+                    newState[k] = v
+                end
+            end
+            state = newState
+            updateDisplay()
+            closeMenu()
+        end,
+        Destroy = function()
+            closeMenu()
+            row:Destroy()
+        end,
+    }
+
+    self._window:_RegisterElement(row, config.Text, api)
+    return api
+end
+
+function Tab:AddColorPicker(config: ColorPickerConfig): {
+    Set: (Color3, boolean?) -> (),
+    Get: () -> Color3,
+    Destroy: () -> (),
+}
+    local theme = self._window._theme
+    local accent = self._window._accent
+
+    local configKey = self._name .. "_" .. config.Text .. "_color"
+    local savedValue = self._window:_LoadValue(configKey)
+    local col: Color3 = if savedValue and typeof(savedValue) == "table"
+        then Color3.fromRGB(savedValue.R, savedValue.G, savedValue.B)
+        else (config.Default or Color3.fromRGB(255, 255, 255))
+
+    local row: Frame = mk("Frame", {
+        Parent = self._page,
+        Size = UDim2.new(1, 0, 0, 24),
+        BackgroundTransparency = 1,
+    }) :: Frame
+
+    local lbl: TextLabel = mk("TextLabel", {
+        Parent = row,
+        Position = UDim2.new(0, 0, 0, 0),
+        Size = UDim2.new(0.5, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = config.Text,
+        Font = Enum.Font.Ubuntu,
+        TextSize = 13,
+        TextColor3 = theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }) :: TextLabel
+
+    addTooltip(row, config.Tip, self._window._tooltipFrame, self._window._tooltipText)
+
+    local cBtn: TextButton = mk("TextButton", {
+        Parent = row,
+        Position = UDim2.new(1, -40, 0, 0),
+        Size = UDim2.new(0, 40, 1, 0),
+        BackgroundColor3 = col,
+        BorderColor3 = theme.Border,
+        Text = "",
+        AutoButtonColor = false,
+    }) :: TextButton
+
+    local menuOpen = false
+    local mFrame: Frame? = nil
+
+    local function closeMenu()
+        if mFrame then
+            pcall(function() mFrame:Destroy() end)
+            mFrame = nil
+        end
+        menuOpen = false
+    end
+
+    local function update(c: Color3, silent: boolean?)
+        col = c
+        cBtn.BackgroundColor3 = col
+        if config.Callback and not silent then
+            pcall(config.Callback, col)
+        end
+        self._window:_SaveValue(configKey, { R = math.floor(col.R * 255), G = math.floor(col.G * 255), B = math.floor(col.B * 255) })
+    end
+
+    Connection.new(cBtn.MouseButton1Click:Connect(function()
+        if menuOpen then closeMenu() return end
+        menuOpen = true
+
+        mFrame = mk("Frame", {
+            Parent = self._window._screenGui,
+            Size = UDim2.new(0, 160, 0, 110),
+            Position = UDim2.new(0, cBtn.AbsolutePosition.X - 120, 0, cBtn.AbsolutePosition.Y + 28),
+            BackgroundColor3 = theme.PanelDark,
+            BorderColor3 = theme.Border,
+            ZIndex = 50,
+        }) :: Frame
+
+        local function mkInp(x: number, cv: number, label: string): TextBox
+            mk("TextLabel", {
+                Parent = mFrame,
+                Position = UDim2.new(0, x, 0, 4),
+                Size = UDim2.new(0, 36, 0, 14),
+                BackgroundTransparency = 1,
+                Text = label,
+                Font = Enum.Font.Ubuntu,
+                TextSize = 10,
+                TextColor3 = theme.SubText,
+            })
+            return mk("TextBox", {
+                Parent = mFrame,
+                Position = UDim2.new(0, x, 0, 18),
+                Size = UDim2.new(0, 36, 0, 22),
+                BackgroundColor3 = theme.Bg,
+                BorderColor3 = theme.Border,
+                Text = tostring(math.floor(cv * 255)),
+                Font = Enum.Font.Ubuntu,
+                TextSize = 12,
+                TextColor3 = theme.Text,
+            }) :: TextBox
+        end
+
+        local rBox = mkInp(10, col.R, "R")
+        local gBox = mkInp(56, col.G, "G")
+        local bBox = mkInp(102, col.B, "B")
+
+        local function onTxt()
+            local r = math.clamp(tonumber(rBox.Text) or 255, 0, 255)
+            local g = math.clamp(tonumber(gBox.Text) or 255, 0, 255)
+            local b = math.clamp(tonumber(bBox.Text) or 255, 0, 255)
+            update(Color3.fromRGB(r, g, b))
+        end
+
+        Connection.new(rBox.FocusLost:Connect(onTxt))
+        Connection.new(gBox.FocusLost:Connect(onTxt))
+        Connection.new(bBox.FocusLost:Connect(onTxt))
+
+        local presets = {
+            Color3.fromRGB(255, 0, 0), Color3.fromRGB(0, 255, 0), Color3.fromRGB(0, 0, 255),
+            Color3.fromRGB(255, 255, 0), Color3.fromRGB(0, 255, 255), Color3.fromRGB(255, 0, 255),
+            Color3.fromRGB(255, 255, 255), Color3.fromRGB(0, 0, 0),
+        }
+        for i, preset in ipairs(presets) do
+            local pBtn: TextButton = mk("TextButton", {
+                Parent = mFrame,
+                Position = UDim2.new(0, 10 + ((i - 1) % 4) * 36, 0, 50 + math.floor((i - 1) / 4) * 26),
+                Size = UDim2.new(0, 28, 0, 20),
+                BackgroundColor3 = preset,
+                BorderColor3 = theme.Border,
+                Text = "",
+            }) :: TextButton
+            Connection.new(pBtn.MouseButton1Click:Connect(function()
+                update(preset)
+                rBox.Text = tostring(math.floor(preset.R * 255))
+                gBox.Text = tostring(math.floor(preset.G * 255))
+                bBox.Text = tostring(math.floor(preset.B * 255))
+            end))
+        end
+    end))
+
+    local api = {
+        Set = function(color: Color3, silent: boolean?)
+            update(color, silent)
+        end,
+        Get = function(): Color3
+            return col
+        end,
+        Destroy = function()
+            closeMenu()
+            row:Destroy()
+        end,
+    }
+
+    self._window:_RegisterElement(row, config.Text, api)
+    return api
+end
+
+function Tab:AddKeybind(config: KeybindConfig): {
+    Set: ((Enum.KeyCode | Enum.UserInputType)?, boolean?) -> (),
+    Get: () -> (Enum.KeyCode | Enum.UserInputType)?,
+    Destroy: () -> (),
+}
+    local theme = self._window._theme
+    local accent = self._window._accent
+
+    local configKey = self._name .. "_" .. config.Text .. "_keybind"
+    local savedValue = self._window:_LoadValue(configKey)
+    local key: (Enum.KeyCode | Enum.UserInputType)? = if savedValue ~= nil
+        then (Enum.KeyCode[savedValue :: string] or Enum.UserInputType[savedValue :: string])
+        else config.Default
+    local mode: KeybindMode = config.Mode or "Press"
+
+    local row: Frame = mk("Frame", {
+        Parent = self._page,
+        Size = UDim2.new(1, 0, 0, 24),
+        BackgroundTransparency = 1,
+    }) :: Frame
+
+    local lbl: TextLabel = mk("TextLabel", {
+        Parent = row,
+        Position = UDim2.new(0, 0, 0, 0),
+        Size = UDim2.new(0.5, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = config.Text,
+        Font = Enum.Font.Ubuntu,
+        TextSize = 13,
+        TextColor3 = theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }) :: TextLabel
+
+    addTooltip(row, config.Tip, self._window._tooltipFrame, self._window._tooltipText)
+
+    local btn: TextButton = mk("TextButton", {
+        Parent = row,
+        Position = UDim2.new(1, -80, 0, 0),
+        Size = UDim2.new(0, 80, 1, 0),
+        BackgroundColor3 = theme.PanelDark,
+        BorderColor3 = theme.Border,
+        Text = "[" .. (key and (key :: any).Name or "None") .. "]",
+        Font = Enum.Font.Ubuntu,
+        TextSize = 12,
+        TextColor3 = theme.SubText,
+        AutoButtonColor = false,
+    }) :: TextButton
+
+    addHover(btn, self._window._tweenEngine, theme.PanelDark, theme.Hover)
+
+    local binding = false
+    local holdActive = false
+
+    Connection.new(btn.MouseButton1Click:Connect(function()
+        binding = true
+        btn.Text = "[...]"
+        local c: RBXScriptConnection? = nil
+        c = UserInputService.InputBegan:Connect(function(input: InputObject)
+            if binding then
+                local isKeyboard = input.UserInputType == Enum.UserInputType.Keyboard
+                local isMouse = input.UserInputType.Name:find("MouseButton") ~= nil
+                if isKeyboard or isMouse then
+                    local kn = input.KeyCode.Name
+                    local mt = input.UserInputType.Name
+                    local res = (kn == "Unknown" and mt) or kn
+                    if res == "Escape" or res == "Backspace" then
+                        key = nil
+                    else
+                        key = input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode or input.UserInputType
+                    end
+                    binding = false
+                    btn.Text = "[" .. (key and (key :: any).Name or "None") .. "]"
+                    if key then
+                        self._window._keybinds[config.Text] = (key :: any).Name
+                    else
+                        self._window._keybinds[config.Text] = nil
+                    end
+                    self._window:_SaveValue(configKey, key and (key :: any).Name or nil)
+                    if config.Callback then
+                        pcall(config.Callback, mode)
+                    end
+                    if c then c:Disconnect() end
+                end
+            end
+        end)
+    end))
+
+    Connection.new(UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
+        if gpe or binding then return end
+        if not key then return end
+        local match = false
+        if typeof(key) == "EnumItem" then
+            if (key :: any).EnumType == Enum.KeyCode and input.KeyCode == key then
+                match = true
+            elseif (key :: any).EnumType == Enum.UserInputType and input.UserInputType == key then
+                match = true
+            end
+        end
+        if match then
+            if mode == "Press" then
+                if config.Callback then pcall(config.Callback, mode) end
+            elseif mode == "Toggle" then
+                holdActive = not holdActive
+                if config.Callback then pcall(config.Callback, mode, holdActive) end
+            elseif mode == "Hold" then
+                holdActive = true
+                if config.Callback then pcall(config.Callback, mode, true) end
+            end
+        end
+    end))
+
+    Connection.new(UserInputService.InputEnded:Connect(function(input: InputObject)
+        if not key then return end
+        local match = false
+        if typeof(key) == "EnumItem" then
+            if (key :: any).EnumType == Enum.KeyCode and input.KeyCode == key then
+                match = true
+            elseif (key :: any).EnumType == Enum.UserInputType and input.UserInputType == key then
+                match = true
+            end
+        end
+        if match and mode == "Hold" then
+            holdActive = false
+            if config.Callback then pcall(config.Callback, mode, false) end
+        end
+    end))
+
+    if key then
+        self._window._keybinds[config.Text] = (key :: any).Name
+    end
+
+    local api = {
+        Set = function(input: (Enum.KeyCode | Enum.UserInputType)?, silent: boolean?)
+            key = input
+            btn.Text = "[" .. (key and (key :: any).Name or "None") .. "]"
+            if key then
+                self._window._keybinds[config.Text] = (key :: any).Name
+            else
+                self._window._keybinds[config.Text] = nil
+            end
+            self._window:_SaveValue(configKey, key and (key :: any).Name or nil)
+            if config.Callback and not silent then
+                pcall(config.Callback, mode)
+            end
+        end,
+        Get = function(): (Enum.KeyCode | Enum.UserInputType)?
+            return key
+        end,
+        Destroy = function()
+            row:Destroy()
+            self._window._keybinds[config.Text] = nil
+        end,
+    }
+
+    self._window:_RegisterElement(row, config.Text, api)
+    return api
+end
+
+function Tab:AddButton(config: ButtonConfig): {
+    Fire: () -> (),
+    Destroy: () -> (),
+}
+    local theme = self._window._theme
+    local accent = self._window._accent
+    local tweenEngine = self._window._tweenEngine
+
+    local row: Frame = mk("Frame", {
+        Parent = self._page,
+        Size = UDim2.new(1, 0, 0, 28),
+        BackgroundTransparency = 1,
+    }) :: Frame
+
+    local btn: TextButton = mk("TextButton", {
+        Parent = row,
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundColor3 = config.Risky and theme.Risky or theme.PanelDark,
+        BorderColor3 = theme.Border,
+        Text = config.Text,
+        Font = Enum.Font.Ubuntu,
+        TextSize = 13,
+        TextColor3 = theme.Text,
+        AutoButtonColor = false,
+    }) :: TextButton
+
+    addTooltip(row, config.Tip, self._window._tooltipFrame, self._window._tooltipText)
+    addHover(btn, tweenEngine, config.Risky and theme.Risky or theme.PanelDark, theme.Hover)
+
+    Connection.new(btn.MouseButton1Click:Connect(function()
+        tweenEngine:Tween(btn, { BackgroundColor3 = accent }, 0.06)
+        task.delay(0.08, function()
+            tweenEngine:Tween(btn, { BackgroundColor3 = config.Risky and theme.Risky or theme.Hover }, 0.1)
+        end)
+        if config.Callback then
+            pcall(config.Callback)
+        end
+    end))
+
+    local api = {
+        Fire = function()
+            if config.Callback then
+                pcall(config.Callback)
+            end
+        end,
+        Destroy = function()
+            row:Destroy()
+        end,
+    }
+
+    self._window:_RegisterElement(row, config.Text, api)
+    return api
+end
+
+function Tab:AddTextInput(config: TextInputConfig): {
+    Set: (string, boolean?) -> (),
+    Get: () -> string,
+    Destroy: () -> (),
+}
+    local theme = self._window._theme
+
+    local configKey = self._name .. "_" .. config.Text .. "_text"
+    local savedValue = self._window:_LoadValue(configKey)
+    local text: string = if savedValue ~= nil then savedValue else (config.Default or "")
+
+    local row: Frame = mk("Frame", {
+        Parent = self._page,
+        Size = UDim2.new(1, 0, 0, 44),
+        BackgroundTransparency = 1,
+    }) :: Frame
+
+    local lbl: TextLabel = mk("TextLabel", {
+        Parent = row,
+        Position = UDim2.new(0, 0, 0, 0),
+        Size = UDim2.new(1, 0, 0, 16),
+        BackgroundTransparency = 1,
+        Text = config.Text,
+        Font = Enum.Font.Ubuntu,
+        TextSize = 13,
+        TextColor3 = theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }) :: TextLabel
+
+    addTooltip(row, config.Tip, self._window._tooltipFrame, self._window._tooltipText)
+
+    local bx: TextBox = mk("TextBox", {
+        Parent = row,
+        Position = UDim2.new(0, 0, 0, 20),
+        Size = UDim2.new(1, 0, 0, 24),
+        BackgroundColor3 = theme.PanelDark,
+        BorderColor3 = theme.Border,
+        Text = text,
+        PlaceholderText = config.Placeholder or "...",
+        Font = Enum.Font.Ubuntu,
+        TextSize = 12,
+        TextColor3 = theme.Text,
+        ClearTextOnFocus = false,
+    }) :: TextBox
+
+    local function onFocusLost()
+        local raw = bx.Text
+        if config.Numeric then
+            local num = tonumber(raw)
+            if num then
+                bx.Text = tostring(num)
+            else
+                bx.Text = text
+                return
+            end
+        end
+        text = bx.Text
+        self._window:_SaveValue(configKey, text)
+        if config.Callback then
+            pcall(config.Callback, text)
+        end
+    end
+
+    if config.Finished then
+        Connection.new(bx.FocusLost:Connect(onFocusLost))
+    else
+        Connection.new(bx:GetPropertyChangedSignal("Text"):Connect(function()
+            text = bx.Text
+            self._window:_SaveValue(configKey, text)
+            if config.Callback then
+                pcall(config.Callback, text)
+            end
+        end))
+    end
+
+    local api = {
+        Set = function(txt: string, silent: boolean?)
+            text = txt
+            bx.Text = text
+            self._window:_SaveValue(configKey, text)
+            if config.Callback and not silent then
+                pcall(config.Callback, text)
+            end
+        end,
+        Get = function(): string
+            return text
+        end,
+        Destroy = function()
+            row:Destroy()
+        end,
+    }
+
+    self._window:_RegisterElement(row, config.Text, api)
+    return api
+end
+
+-- ── MODULE FUNCTIONS ──
+function DespairUI:Notify(config: NotificationConfig): ()
+    self._notifications:Notify(config)
+end
+
+function DespairUI:SetTheme(name: ThemeName): ()
+    self._theme = Themes[name] or Themes.Default
+end
+
+function DespairUI:Destroy(): ()
+    for _, conn in ipairs(self._connections) do
+        conn:Disconnect()
+    end
+    table.clear(self._connections)
+
+    for _, win in ipairs(self._windows) do
+        if win and win.Parent then
+            pcall(function() win:Destroy() end)
+        end
+    end
+    table.clear(self._windows)
+
+    self._notifications:Destroy()
+    self._tweenEngine:Destroy()
+
+    if self._config then
+        self._config:Destroy()
+    end
+end
+
+-- ── RETURN ──
+return ModuleInstance
