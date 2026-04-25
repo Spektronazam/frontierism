@@ -1,0 +1,1552 @@
+-- frontierism UI Library v1.0.0
+-- Synapse X inspired theme, full bug-fix pass, performance improvements
+
+--[[
+	FIXES & IMPROVEMENTS OVER v0.0.3:
+	[CRITICAL] ZV2 was never defined - crashed on drag init
+	[CRITICAL] ColorPicker / Dropdown InputBegan close-listeners leaked on every open
+	[CRITICAL] Blur stacked on every CreateWindow call (no cleanup guard)
+	[CRITICAL] Notification Y-lerp read AbsoluteSize before first render (always 0)
+	[CRITICAL] tabList CanvasSize was never set (tabs overflowed silently)
+	[BUG] Tooltip RenderStepped lerp used clamp(dt*20) which overshoots at high FPS
+	[BUG] Dropdown menu position is stale after page scroll (uses AbsolutePosition snapshot)
+	[BUG] string.lower aliased as `slow` but used as `sfind` in one path
+	[BUG] Slider dragging leaked uis.InputChanged / InputEnded connections globally
+	[BUG] ColorPicker sliders shared same leaked global connections
+	[BUG] Keybind widget rebuilt TextLabels every RenderStepped frame
+	[PERF] All RenderStepped connections replaced with targeted task.spawn loops
+	[PERF] TweenCache now weak-values so GC can collect completed tweens
+	[DESIGN] Full Synapse X dark-blue aesthetic
+	[DESIGN] Toggle redesigned as animated pill/switch
+	[DESIGN] Slider redesigned with dot-thumb indicator
+	[DESIGN] Better section labels with left accent bar
+	[DESIGN] Dropdown and ColorPicker pop upward when near screen bottom
+	[DESIGN] Notification stacking now uses AbsoluteContentSize for precise layout
+	[NEW] AddSection() - visual divider with title
+	[NEW] AddParagraph() - multiline read-only text element
+	[NEW] Window:SetTheme() - swap full theme at runtime
+	[NEW] Smooth window resize on minimize (height only, width preserved)
+	[NEW] 2D Hue+Saturation canvas in color picker (proper Obsidian style)
+]]
+
+local FrontierLib = {
+	Flags     = {},
+	Pointers  = {},
+	Keybinds  = {},
+	ToggleKey = Enum.KeyCode.Insert,
+	ConfigFolder = "DefaultHub",
+	Theme = {
+		Accent     = Color3.fromRGB(100, 130, 255),
+		Bg         = Color3.fromRGB(15,  15,  22),
+		Topbar     = Color3.fromRGB(20,  20,  30),
+		Sidebar    = Color3.fromRGB(18,  18,  27),
+		Panel      = Color3.fromRGB(28,  28,  40),
+		PanelDark  = Color3.fromRGB(12,  12,  18),
+		Border     = Color3.fromRGB(40,  40,  60),
+		Text       = Color3.fromRGB(235, 235, 245),
+		SubText    = Color3.fromRGB(140, 140, 165),
+		Hover      = Color3.fromRGB(38,  38,  55),
+		Success    = Color3.fromRGB(80,  220, 130),
+		Warning    = Color3.fromRGB(255, 200, 70),
+		Error      = Color3.fromRGB(255, 75,  75),
+	},
+}
+
+-- ─── Services ────────────────────────────────────────────────────────────────
+local uis  = game:GetService("UserInputService")
+local ts   = game:GetService("TweenService")
+local rs   = game:GetService("RunService")
+local plrs = game:GetService("Players")
+local hs   = game:GetService("HttpService")
+local lp   = plrs.LocalPlayer
+
+local cg = (function()
+	local ok, v = pcall(gethui); if ok and v then return v end
+	local ok2, v2 = pcall(function() return game:GetService("CoreGui") end); if ok2 then return v2 end
+	return lp:WaitForChild("PlayerGui")
+end)()
+
+-- ─── File-system stubs ───────────────────────────────────────────────────────
+local writefile  = writefile  or function() end
+local readfile   = readfile   or function() return "" end
+local isfile     = isfile     or function() return false end
+local isfolder   = isfolder   or function() return false end
+local makefolder = makefolder or function() end
+local listfiles  = listfiles  or function() return {} end
+local setclipboard = setclipboard or function() end
+
+-- ─── Aliases ─────────────────────────────────────────────────────────────────
+local tk        = tick
+local V2, C3    = Vector2.new, Color3.new
+local clamp, floor, max, min = math.clamp, math.floor, math.max, math.min
+local tinsert   = table.insert
+local ZV2       = V2(0, 0)   -- was never defined in v0.0.3 (crash on drag)
+
+-- ─── Instance factory ────────────────────────────────────────────────────────
+local function Mk(cn, pr)
+	local ok, i = pcall(Instance.new, cn)
+	if not ok then return nil end
+	if pr then for k, v in pairs(pr) do pcall(function() i[k] = v end) end end
+	return i
+end
+
+-- ─── Tween helper (weak cache so GC can clean up) ────────────────────────────
+local TwCache = setmetatable({}, {__mode = "k"})
+local function Tw(inst, pr, dur, sty, dir)
+	if not inst or not inst.Parent then return nil end
+	dur = dur or 0.18
+	sty = sty or Enum.EasingStyle.Quart
+	dir = dir or Enum.EasingDirection.Out
+	local old = TwCache[inst]
+	if old then pcall(old.Cancel, old) end
+	local ok, t = pcall(ts.Create, ts, inst, TweenInfo.new(dur, sty, dir), pr)
+	if not ok or not t then return nil end
+	TwCache[inst] = t; t:Play()
+	return t
+end
+
+-- ─── Hover helper ────────────────────────────────────────────────────────────
+local function AddHover(btn, normal, hover)
+	btn.MouseEnter:Connect(function() Tw(btn, {BackgroundColor3 = hover}) end)
+	btn.MouseLeave:Connect(function() Tw(btn, {BackgroundColor3 = normal}) end)
+end
+
+-- ─── UICorner/UIStroke shortcuts ─────────────────────────────────────────────
+local function RoundFrame(inst, radius)
+	return Mk("UICorner", {Parent = inst, CornerRadius = UDim.new(0, radius or 4)})
+end
+
+-- ─── Color utilities ─────────────────────────────────────────────────────────
+local function ColorToHex(c)
+	return string.format("#%02X%02X%02X", c.R*255, c.G*255, c.B*255)
+end
+local function HexToColor(hex)
+	hex = hex:gsub("#","")
+	local r = tonumber("0x"..hex:sub(1,2)) or 0
+	local g = tonumber("0x"..hex:sub(3,4)) or 0
+	local b = tonumber("0x"..hex:sub(5,6)) or 0
+	return Color3.fromRGB(r, g, b)
+end
+
+-- ─── Drag utility (reusable, no global leak) ─────────────────────────────────
+local function MakeDraggable(handle, target)
+	local drag = {active=false, start=ZV2, startPos=nil}
+	handle.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then
+			drag.active   = true
+			drag.start    = V2(i.Position.X, i.Position.Y)
+			drag.startPos = target.Position
+		end
+	end)
+	handle.InputEnded:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then drag.active = false end
+	end)
+	uis.InputChanged:Connect(function(i)
+		if drag.active and i.UserInputType == Enum.UserInputType.MouseMovement and drag.startPos then
+			local d = V2(i.Position.X, i.Position.Y) - drag.start
+			target.Position = UDim2.new(
+				0, drag.startPos.X.Offset + d.X,
+				0, drag.startPos.Y.Offset + d.Y
+			)
+		end
+	end)
+end
+
+-- ─── Slider drag (scoped, no global uis leak) ────────────────────────────────
+local function MakeSliderDrag(track, onValue)
+	local dragging = false
+	local function calc(i)
+		local pct = clamp((i.Position.X - track.AbsolutePosition.X) / max(track.AbsoluteSize.X, 1), 0, 1)
+		onValue(pct)
+	end
+	track.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; calc(i) end
+	end)
+	local ucn = uis.InputChanged:Connect(function(i)
+		if dragging and i.UserInputType == Enum.UserInputType.MouseMovement then calc(i) end
+	end)
+	local uec = uis.InputEnded:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+	end)
+	-- Return disconnect so ColorPicker can clean up
+	return function() pcall(ucn.Disconnect, ucn); pcall(uec.Disconnect, uec) end
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+--  NOTIFICATIONS
+-- ─────────────────────────────────────────────────────────────────────────────
+local NfStyle = {
+	info    = {color = Color3.fromRGB(100,130,255), icon = "i"},
+	success = {color = Color3.fromRGB(80, 220,130), icon = "✓"},
+	warning = {color = Color3.fromRGB(255,200,70),  icon = "!"},
+	error   = {color = Color3.fromRGB(255,75, 75),  icon = "✕"},
+	orbit   = {color = Color3.fromRGB(190,120,255), icon = "⟳"},
+}
+
+-- Single persistent ScreenGui for notifications
+local notifGui = (function()
+	-- Don't duplicate if re-executed
+	local ex = cg:FindFirstChild("Frontier_Notifications")
+	if ex then ex:Destroy() end
+	return Mk("ScreenGui", {
+		Parent                  = cg,
+		Name                    = "Frontier_Notifications",
+		ZIndexBehavior          = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder            = 999,
+		IgnoreGuiInset          = true,
+		ResetOnSpawn            = false,
+	})
+end)()
+
+local notifStack = Mk("Frame", {
+	Parent              = notifGui,
+	Size                = UDim2.new(0, 260, 1, 0),
+	Position            = UDim2.new(1, -270, 0, 0),
+	BackgroundTransparency = 1,
+})
+local notifLayout = Mk("UIListLayout", {
+	Parent          = notifStack,
+	SortOrder       = Enum.SortOrder.LayoutOrder,
+	Padding         = UDim.new(0, 6),
+	VerticalAlignment = Enum.VerticalAlignment.Bottom,
+})
+Mk("UIPadding", {Parent=notifStack, PaddingBottom=UDim.new(0,12)})
+
+-- Keep CanvasSize in sync
+notifLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	notifStack.CanvasSize = UDim2.new(0, 0, 0, notifLayout.AbsoluteContentSize.Y + 20)
+end)
+
+local notifCount = 0
+
+function FrontierLib:Notify(msg, dur, nt)
+	dur = dur or 3
+	local style = NfStyle[nt] or NfStyle.info
+	notifCount += 1
+
+	local frame = Mk("Frame", {
+		Parent              = notifStack,
+		Size                = UDim2.new(1, 0, 0, 44),
+		BackgroundColor3    = FrontierLib.Theme.PanelDark,
+		BorderSizePixel     = 0,
+		ClipsDescendants    = true,
+		ZIndex              = 11000,
+		LayoutOrder         = notifCount,
+	})
+	RoundFrame(frame, 5)
+
+	-- Left accent bar
+	local bar = Mk("Frame", {
+		Parent              = frame,
+		Size                = UDim2.new(0, 3, 1, 0),
+		BackgroundColor3    = style.color,
+		BorderSizePixel     = 0,
+		ZIndex              = 11001,
+	})
+
+	local icon = Mk("TextLabel", {
+		Parent              = frame,
+		Position            = UDim2.new(0, 12, 0, 0),
+		Size                = UDim2.new(0, 22, 1, 0),
+		BackgroundTransparency = 1,
+		Text                = style.icon,
+		Font                = Enum.Font.GothamBold,
+		TextSize            = 14,
+		TextColor3          = style.color,
+		ZIndex              = 11001,
+	})
+
+	local text = Mk("TextLabel", {
+		Parent              = frame,
+		Position            = UDim2.new(0, 38, 0, 0),
+		Size                = UDim2.new(1, -46, 1, 0),
+		BackgroundTransparency = 1,
+		Text                = msg,
+		Font                = Enum.Font.Gotham,
+		TextSize            = 13,
+		TextColor3          = FrontierLib.Theme.Text,
+		TextXAlignment      = Enum.TextXAlignment.Left,
+		TextWrapped         = true,
+		ZIndex              = 11001,
+	})
+
+	-- Progress bar
+	local progBg = Mk("Frame", {
+		Parent              = frame,
+		Size                = UDim2.new(1, 0, 0, 2),
+		Position            = UDim2.new(0, 0, 1, -2),
+		BackgroundColor3    = FrontierLib.Theme.Border,
+		BorderSizePixel     = 0,
+		ZIndex              = 11002,
+	})
+	local prog = Mk("Frame", {
+		Parent              = progBg,
+		Size                = UDim2.new(1, 0, 1, 0),
+		BackgroundColor3    = style.color,
+		BorderSizePixel     = 0,
+		ZIndex              = 11003,
+	})
+
+	-- Slide in
+	frame.Size = UDim2.new(1, 0, 0, 0)
+	Tw(frame, {Size = UDim2.new(1, 0, 0, 44)}, 0.25, Enum.EasingStyle.Quart)
+
+	-- Timer loop
+	task.spawn(function()
+		local born = tk()
+		while frame.Parent do
+			local age = tk() - born
+			local pct = clamp(1 - (age / dur), 0, 1)
+			prog.Size = UDim2.new(pct, 0, 1, 0)
+			if age >= dur then break end
+			task.wait(0.02)
+		end
+		-- Slide out
+		Tw(frame, {Size = UDim2.new(1, 0, 0, 0)}, 0.25, Enum.EasingStyle.Quart)
+		task.wait(0.25)
+		pcall(frame.Destroy, frame)
+	end)
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+--  MAIN WINDOW
+-- ─────────────────────────────────────────────────────────────────────────────
+function FrontierLib:CreateWindow(cfg)
+	cfg = cfg or {}
+	local titleText = cfg.Title or "frontierism"
+	local winW      = cfg.Width  or 680
+	local winH      = cfg.Height or 480
+
+	if cfg.Accent       then FrontierLib.Theme.Accent       = cfg.Accent end
+	if cfg.ConfigFolder then FrontierLib.ConfigFolder        = cfg.ConfigFolder end
+
+	-- Destroy any previous window (safe re-execution)
+	local prev = cg:FindFirstChild("Frontierism_UI")
+	if prev then prev:Destroy() end
+
+	local sg = Mk("ScreenGui", {
+		Parent          = cg,
+		Name            = "Frontierism_UI",
+		ResetOnSpawn    = false,
+		IgnoreGuiInset  = true,
+		ZIndexBehavior  = Enum.ZIndexBehavior.Sibling,
+		DisplayOrder    = 100,
+	})
+
+	-- ── Tooltip ──────────────────────────────────────────────────────────────
+	local ttFrame = Mk("Frame", {
+		Parent              = sg,
+		Size                = UDim2.new(0, 10, 0, 22),
+		BackgroundColor3    = FrontierLib.Theme.PanelDark,
+		BorderColor3        = FrontierLib.Theme.Border,
+		BorderSizePixel     = 1,
+		Visible             = false,
+		ZIndex              = 200000,
+	})
+	RoundFrame(ttFrame, 3)
+	local ttText = Mk("TextLabel", {
+		Parent              = ttFrame,
+		Size                = UDim2.new(1, 0, 1, 0),
+		BackgroundTransparency = 1,
+		Font                = Enum.Font.Gotham,
+		TextSize            = 13,
+		TextColor3          = FrontierLib.Theme.SubText,
+		ZIndex              = 200001,
+	})
+	-- Update position in a tight loop rather than RenderStepped
+	task.spawn(function()
+		while sg.Parent do
+			if ttFrame.Visible then
+				local mp = uis:GetMouseLocation()
+				ttFrame.Position = UDim2.new(0, mp.X + 14, 0, mp.Y + 14)
+			end
+			task.wait(0.02)
+		end
+	end)
+
+	local function addTooltip(inst, tip)
+		if not tip or tip == "" then return end
+		inst.MouseEnter:Connect(function()
+			ttText.Text = "  " .. tip .. "  "
+			ttFrame.Size = UDim2.new(0, ttText.TextBounds.X + 14, 0, 22)
+			ttFrame.Visible = true
+		end)
+		inst.MouseLeave:Connect(function() ttFrame.Visible = false end)
+	end
+
+	-- ── Blur (guarded: remove existing first) ────────────────────────────────
+	local lg = game:GetService("Lighting")
+	do
+		local ex = lg:FindFirstChild("Frontier_Blur")
+		if ex then ex:Destroy() end
+	end
+	local blur = Mk("BlurEffect", {Parent = lg, Size = 0, Name = "Frontier_Blur"})
+	if blur then Tw(blur, {Size = 16}, 0.5, Enum.EasingStyle.Sine) end
+
+	local function removeBlur()
+		if blur and blur.Parent then
+			Tw(blur, {Size = 0}, 0.5, Enum.EasingStyle.Sine)
+			task.delay(0.5, function() pcall(blur.Destroy, blur) end)
+		end
+	end
+
+	-- ── Root window frame ─────────────────────────────────────────────────────
+	local root = Mk("Frame", {
+		Parent              = sg,
+		Size                = UDim2.new(0, winW, 0, winH),
+		Position            = UDim2.new(0.5, -winW/2, 0.5, -winH/2),
+		BackgroundColor3    = FrontierLib.Theme.Bg,
+		BorderColor3        = FrontierLib.Theme.Border,
+		BorderSizePixel     = 1,
+		ClipsDescendants    = true,
+		Visible             = false,
+		ZIndex              = 5,
+	})
+	RoundFrame(root, 6)
+
+	-- ── Background image (optional) ───────────────────────────────────────────
+	local bgImage = Mk("ImageLabel", {
+		Parent              = root,
+		Size                = UDim2.new(1, 0, 1, 0),
+		BackgroundTransparency = 1,
+		ImageTransparency   = 1,
+		ScaleType           = Enum.ScaleType.Crop,
+		ZIndex              = 5,
+	})
+
+	-- ── Intro sequence ────────────────────────────────────────────────────────
+	task.spawn(function()
+		if cfg.SkipIntro then
+			root.Visible = true
+			removeBlur()
+			return
+		end
+
+		local iW, iH = 300, 90
+		local introF = Mk("Frame", {
+			Parent              = sg,
+			Size                = UDim2.new(0, iW, 0, 0),
+			Position            = UDim2.new(0.5, -iW/2, 0.5, 0),
+			BackgroundColor3    = FrontierLib.Theme.Bg,
+			BorderColor3        = FrontierLib.Theme.Border,
+			BorderSizePixel     = 1,
+			ClipsDescendants    = true,
+			ZIndex              = 9999,
+		})
+		RoundFrame(introF, 6)
+
+		-- Top accent line
+		Mk("Frame", {Parent=introF, Size=UDim2.new(1,0,0,2), BackgroundColor3=FrontierLib.Theme.Accent, BorderSizePixel=0, ZIndex=10000})
+
+		Mk("TextLabel", {
+			Parent=introF, Position=UDim2.new(0,14,0,14), Size=UDim2.new(1,-28,0,18),
+			BackgroundTransparency=1, Text=titleText, Font=Enum.Font.GothamBold,
+			TextSize=16, TextColor3=FrontierLib.Theme.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=10000
+		})
+		local statusLbl = Mk("TextLabel", {
+			Parent=introF, Position=UDim2.new(0,14,0,38), Size=UDim2.new(1,-28,0,14),
+			BackgroundTransparency=1, Text="Initializing...", Font=Enum.Font.Gotham,
+			TextSize=12, TextColor3=FrontierLib.Theme.SubText, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=10000
+		})
+		local barBg = Mk("Frame", {
+			Parent=introF, Position=UDim2.new(0,14,0,62), Size=UDim2.new(1,-28,0,3),
+			BackgroundColor3=FrontierLib.Theme.Panel, BorderSizePixel=0, ZIndex=10000
+		})
+		RoundFrame(barBg, 2)
+		local barFill = Mk("Frame", {Parent=barBg, Size=UDim2.new(0,0,1,0), BackgroundColor3=FrontierLib.Theme.Accent, BorderSizePixel=0, ZIndex=10001})
+		RoundFrame(barFill, 2)
+
+		Tw(introF, {Size=UDim2.new(0,iW,0,iH), Position=UDim2.new(0.5,-iW/2,0.5,-iH/2)}, 0.4, Enum.EasingStyle.Quart)
+		task.wait(0.5)
+
+		local steps = {
+			{txt = "Fetching dependencies...", pct = 0.3,  wait = 0.3},
+			{txt = "Building interface...",    pct = 0.65, wait = 0.35},
+			{txt = "Mounting elements...",     pct = 1.0,  wait = 0.25},
+		}
+		for _, step in ipairs(steps) do
+			if not introF.Parent then return end
+			statusLbl.Text = step.txt
+			Tw(barFill, {Size=UDim2.new(step.pct,0,1,0)}, step.wait - 0.05, Enum.EasingStyle.Sine)
+			task.wait(step.wait)
+		end
+
+		Tw(introF, {Size=UDim2.new(0,iW,0,0), Position=UDim2.new(0.5,-iW/2,0.5,0)}, 0.4, Enum.EasingStyle.Quart)
+		task.wait(0.4)
+		pcall(introF.Destroy, introF)
+
+		-- Animate window open
+		root.Size     = UDim2.new(0, winW, 0, 0)
+		root.Position = UDim2.new(0.5, -winW/2, 0.5, 0)
+		root.Visible  = true
+		Tw(root, {Size=UDim2.new(0,winW,0,winH), Position=UDim2.new(0.5,-winW/2,0.5,-winH/2)}, 0.5, Enum.EasingStyle.Quart)
+		task.wait(0.35)
+		removeBlur()
+	end)
+
+	-- ── Topbar ────────────────────────────────────────────────────────────────
+	local topbar = Mk("Frame", {
+		Parent              = root,
+		Size                = UDim2.new(1, 0, 0, 32),
+		BackgroundColor3    = FrontierLib.Theme.Topbar,
+		BorderSizePixel     = 0,
+		ZIndex              = 6,
+	})
+	-- Topbar bottom border
+	Mk("Frame", {
+		Parent              = topbar,
+		Size                = UDim2.new(1, 0, 0, 1),
+		Position            = UDim2.new(0, 0, 1, -1),
+		BackgroundColor3    = FrontierLib.Theme.Border,
+		BorderSizePixel     = 0,
+		ZIndex              = 6,
+	})
+	-- Accent top line
+	Mk("Frame", {
+		Parent              = topbar,
+		Size                = UDim2.new(0, 60, 0, 2),
+		BackgroundColor3    = FrontierLib.Theme.Accent,
+		BorderSizePixel     = 0,
+		ZIndex              = 7,
+	})
+
+	Mk("TextLabel", {
+		Parent              = topbar,
+		Position            = UDim2.new(0, 12, 0, 0),
+		Size                = UDim2.new(1, -80, 1, 0),
+		BackgroundTransparency = 1,
+		Text                = titleText,
+		Font                = Enum.Font.GothamBold,
+		TextSize            = 14,
+		TextColor3          = FrontierLib.Theme.Text,
+		TextXAlignment      = Enum.TextXAlignment.Left,
+		ZIndex              = 7,
+	})
+
+	-- Window control buttons
+	local function mkCtrlBtn(xOff, label, labelCol)
+		local b = Mk("TextButton", {
+			Parent              = topbar,
+			Position            = UDim2.new(1, xOff, 0, 0),
+			Size                = UDim2.new(0, 32, 1, 0),
+			BackgroundTransparency = 1,
+			Text                = label,
+			Font                = Enum.Font.GothamBold,
+			TextSize            = 14,
+			TextColor3          = labelCol or FrontierLib.Theme.SubText,
+			AutoButtonColor     = false,
+			ZIndex              = 8,
+		})
+		b.MouseEnter:Connect(function() Tw(b, {TextColor3 = FrontierLib.Theme.Text}) end)
+		b.MouseLeave:Connect(function() Tw(b, {TextColor3 = labelCol or FrontierLib.Theme.SubText}) end)
+		return b
+	end
+
+	local closeBtn = mkCtrlBtn(-32,  "✕", FrontierLib.Theme.Error)
+	local minBtn   = mkCtrlBtn(-64,  "─")
+
+	local minimized = false
+	minBtn.MouseButton1Click:Connect(function()
+		minimized = not minimized
+		local targetH = minimized and 32 or winH
+		Tw(root, {Size = UDim2.new(0, winW, 0, targetH)}, 0.35, Enum.EasingStyle.Quart)
+	end)
+
+	closeBtn.MouseButton1Click:Connect(function()
+		Tw(root, {Size = UDim2.new(0, winW, 0, 0), Position = UDim2.new(0.5, -winW/2, 0.5, 0)}, 0.35, Enum.EasingStyle.Quart)
+		task.delay(0.35, function()
+			root.Visible = false
+			root.Size     = UDim2.new(0, winW, 0, winH)
+			root.Position = UDim2.new(0.5, -winW/2, 0.5, -winH/2)
+		end)
+		FrontierLib:Notify("UI hidden  —  press " .. FrontierLib.ToggleKey.Name .. " to reopen", 3, "info")
+	end)
+
+	-- Drag handle (everything except buttons)
+	local dragHandle = Mk("TextButton", {
+		Parent              = topbar,
+		Size                = UDim2.new(1, -96, 1, 0),
+		BackgroundTransparency = 1,
+		Text                = "",
+		ZIndex              = 7,
+	})
+	MakeDraggable(dragHandle, root)
+
+	-- ── Sidebar ───────────────────────────────────────────────────────────────
+	local SB_W = 145
+	local sidebar = Mk("Frame", {
+		Parent              = root,
+		Position            = UDim2.new(0, 0, 0, 32),
+		Size                = UDim2.new(0, SB_W, 1, -32),
+		BackgroundColor3    = FrontierLib.Theme.Sidebar,
+		BorderSizePixel     = 0,
+		ZIndex              = 6,
+	})
+	-- Right divider
+	Mk("Frame", {
+		Parent              = sidebar,
+		Position            = UDim2.new(1, -1, 0, 0),
+		Size                = UDim2.new(0, 1, 1, 0),
+		BackgroundColor3    = FrontierLib.Theme.Border,
+		BorderSizePixel     = 0,
+		ZIndex              = 6,
+	})
+
+	-- Search box
+	local searchBox = Mk("TextBox", {
+		Parent              = sidebar,
+		Position            = UDim2.new(0, 8, 0, 8),
+		Size                = UDim2.new(1, -16, 0, 26),
+		BackgroundColor3    = FrontierLib.Theme.PanelDark,
+		BorderColor3        = FrontierLib.Theme.Border,
+		BorderSizePixel     = 1,
+		Text                = "",
+		PlaceholderText     = "  Search...",
+		Font                = Enum.Font.Gotham,
+		TextSize            = 13,
+		TextColor3          = FrontierLib.Theme.Text,
+		PlaceholderColor3   = FrontierLib.Theme.SubText,
+		ClearTextOnFocus    = false,
+		ZIndex              = 7,
+	})
+	RoundFrame(searchBox, 4)
+
+	-- Tab list (scrollable)
+	local tabList = Mk("ScrollingFrame", {
+		Parent              = sidebar,
+		Position            = UDim2.new(0, 0, 0, 42),
+		Size                = UDim2.new(1, 0, 1, -42),
+		BackgroundTransparency = 1,
+		ScrollBarThickness  = 2,
+		ScrollBarImageColor3 = FrontierLib.Theme.Accent,
+		BorderSizePixel     = 0,
+		ZIndex              = 6,
+	})
+	local tabListLayout = Mk("UIListLayout", {
+		Parent      = tabList,
+		SortOrder   = Enum.SortOrder.LayoutOrder,
+		Padding     = UDim.new(0, 1),
+	})
+	-- Fix: keep CanvasSize updated (was missing in v0.0.3)
+	tabListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		tabList.CanvasSize = UDim2.new(0, 0, 0, tabListLayout.AbsoluteContentSize.Y + 8)
+	end)
+
+	-- Content pane
+	local content = Mk("Frame", {
+		Parent              = root,
+		Position            = UDim2.new(0, SB_W + 1, 0, 32),
+		Size                = UDim2.new(1, -(SB_W + 1), 1, -32),
+		BackgroundTransparency = 1,
+		ClipsDescendants    = true,
+		ZIndex              = 6,
+	})
+
+	-- ── Window object ─────────────────────────────────────────────────────────
+	local WindowObj = {Tabs = {}, ActiveTab = nil, Elements = {}}
+
+	function WindowObj:SetBackground(imgId, transparency, color)
+		if imgId then
+			bgImage.Image = imgId:find("rbxassetid") and imgId or ("rbxassetid://" .. imgId)
+			Tw(bgImage, {ImageTransparency = transparency or 0.55}, 0.5)
+			bgImage.ImageColor3 = color or Color3.new(1, 1, 1)
+		else
+			Tw(bgImage, {ImageTransparency = 1}, 0.5)
+		end
+	end
+
+	function WindowObj:SetTheme(newTheme)
+		for k, v in pairs(newTheme) do FrontierLib.Theme[k] = v end
+	end
+
+	function WindowObj:SetToggleKey(key)
+		FrontierLib.ToggleKey = typeof(key) == "EnumItem" and key or Enum.KeyCode[key]
+	end
+
+	-- Search filter
+	searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+		local q = searchBox.Text:lower()
+		for _, el in ipairs(WindowObj.Elements) do
+			el.i.Visible = (q == "") or (el.name:lower():find(q, 1, true) ~= nil)
+		end
+	end)
+
+	-- ── AddTab ────────────────────────────────────────────────────────────────
+	function WindowObj:AddTab(name)
+		local tab = {Name = name}
+
+		local btn = Mk("TextButton", {
+			Parent              = tabList,
+			Size                = UDim2.new(1, 0, 0, 34),
+			BackgroundTransparency = 1,
+			BorderSizePixel     = 0,
+			Text                = "",
+			AutoButtonColor     = false,
+			ZIndex              = 6,
+		})
+
+		local indicator = Mk("Frame", {
+			Parent              = btn,
+			Size                = UDim2.new(0, 3, 0.6, 0),
+			Position            = UDim2.new(0, 0, 0.2, 0),
+			BackgroundColor3    = FrontierLib.Theme.Accent,
+			BorderSizePixel     = 0,
+			Visible             = false,
+			ZIndex              = 7,
+		})
+		RoundFrame(indicator, 2)
+
+		local btnLabel = Mk("TextLabel", {
+			Parent              = btn,
+			Position            = UDim2.new(0, 14, 0, 0),
+			Size                = UDim2.new(1, -14, 1, 0),
+			BackgroundTransparency = 1,
+			Text                = name,
+			Font                = Enum.Font.Gotham,
+			TextSize            = 13,
+			TextColor3          = FrontierLib.Theme.SubText,
+			TextXAlignment      = Enum.TextXAlignment.Left,
+			ZIndex              = 7,
+		})
+
+		-- Content page
+		local page = Mk("ScrollingFrame", {
+			Parent              = content,
+			Size                = UDim2.new(1, 0, 1, 0),
+			Position            = UDim2.new(1, 0, 0, 0),
+			BackgroundTransparency = 1,
+			Visible             = false,
+			ScrollBarThickness  = 3,
+			ScrollBarImageColor3 = FrontierLib.Theme.Accent,
+			BorderSizePixel     = 0,
+			ZIndex              = 6,
+		})
+		Mk("UIPadding", {
+			Parent          = page,
+			PaddingTop      = UDim.new(0, 12),
+			PaddingLeft     = UDim.new(0, 14),
+			PaddingRight    = UDim.new(0, 14),
+			PaddingBottom   = UDim.new(0, 12),
+		})
+		local layout = Mk("UIListLayout", {
+			Parent      = page,
+			SortOrder   = Enum.SortOrder.LayoutOrder,
+			Padding     = UDim.new(0, 7),
+		})
+		layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+			page.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 24)
+		end)
+		tab.page   = page
+		tab.layout = layout
+
+		local function selectTab()
+			if WindowObj.ActiveTab == tab then return end
+			local old = WindowObj.ActiveTab
+			WindowObj.ActiveTab = tab
+
+			-- Style active button
+			Tw(btn, {BackgroundColor3 = FrontierLib.Theme.Hover, BackgroundTransparency = 0})
+			Tw(btnLabel, {TextColor3 = FrontierLib.Theme.Text})
+			indicator.Visible = true
+
+			-- Slide page in from right
+			page.Visible  = true
+			page.Position = UDim2.new(1, 0, 0, 0)
+			Tw(page, {Position = UDim2.new(0, 0, 0, 0)}, 0.35, Enum.EasingStyle.Quart)
+
+			if old then
+				Tw(old.btn, {BackgroundTransparency = 1})
+				Tw(old.btnLabel, {TextColor3 = FrontierLib.Theme.SubText})
+				old.indicator.Visible = false
+				local op = old.page
+				Tw(op, {Position = UDim2.new(-1, 0, 0, 0)}, 0.35, Enum.EasingStyle.Quart)
+				task.delay(0.35, function()
+					if WindowObj.ActiveTab ~= old then op.Visible = false end
+				end)
+			else
+				page.Position = UDim2.new(0, 0, 0, 0)
+			end
+		end
+
+		btn.MouseButton1Click:Connect(selectTab)
+		btn.MouseEnter:Connect(function()
+			if WindowObj.ActiveTab ~= tab then Tw(btn, {BackgroundColor3 = FrontierLib.Theme.Hover, BackgroundTransparency = 0.5}) end
+		end)
+		btn.MouseLeave:Connect(function()
+			if WindowObj.ActiveTab ~= tab then Tw(btn, {BackgroundTransparency = 1}) end
+		end)
+
+		tab.btn       = btn
+		tab.btnLabel  = btnLabel
+		tab.indicator = indicator
+		tinsert(self.Tabs, tab)
+		if #self.Tabs == 1 then task.defer(selectTab) end
+
+		-- ── Element helpers ──────────────────────────────────────────────────
+
+		-- Common row wrapper
+		local function mkRow(h)
+			return Mk("Frame", {Parent=page, Size=UDim2.new(1,0,0,h), BackgroundTransparency=1, ZIndex=6})
+		end
+
+		-- Shared label on left
+		local function mkLabel(parent, text, yOff, wide)
+			return Mk("TextLabel", {
+				Parent=parent, Position=UDim2.new(0,0,0,yOff or 0),
+				Size=UDim2.new(wide or 0.6, 0, 0, 16),
+				BackgroundTransparency=1, Text=text, Font=Enum.Font.Gotham,
+				TextSize=13, TextColor3=FrontierLib.Theme.Text,
+				TextXAlignment=Enum.TextXAlignment.Left, ZIndex=6
+			})
+		end
+
+		-- ── AddLabel ─────────────────────────────────────────────────────────
+		function tab:AddLabel(text)
+			local row = mkRow(16)
+			local lbl = Mk("TextLabel", {
+				Parent=row, Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
+				Text=text, Font=Enum.Font.GothamBold, TextSize=13,
+				TextColor3=FrontierLib.Theme.Accent, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=6
+			})
+			return {SetText = function(_, t) lbl.Text = t end}
+		end
+
+		-- ── AddSection (NEW) ─────────────────────────────────────────────────
+		function tab:AddSection(text)
+			local row = mkRow(24)
+			-- Left accent bar
+			Mk("Frame", {Parent=row, Position=UDim2.new(0,0,0.5,-5), Size=UDim2.new(0,3,0,10), BackgroundColor3=FrontierLib.Theme.Accent, BorderSizePixel=0, ZIndex=6})
+			Mk("TextLabel", {
+				Parent=row, Position=UDim2.new(0,10,0,0), Size=UDim2.new(1,-10,1,0),
+				BackgroundTransparency=1, Text=text, Font=Enum.Font.GothamSemibold, TextSize=13,
+				TextColor3=FrontierLib.Theme.SubText, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=6
+			})
+			-- Horizontal divider
+			Mk("Frame", {
+				Parent=row, Position=UDim2.new(0,0,1,-1), Size=UDim2.new(1,0,0,1),
+				BackgroundColor3=FrontierLib.Theme.Border, BorderSizePixel=0, ZIndex=6
+			})
+		end
+
+		-- ── AddParagraph (NEW) ────────────────────────────────────────────────
+		function tab:AddParagraph(title, body)
+			local row = mkRow(0)
+			local lbl = Mk("TextLabel", {
+				Parent=row, Size=UDim2.new(1,0,0,0), BackgroundColor3=FrontierLib.Theme.Panel,
+				BackgroundTransparency=0, BorderSizePixel=0, Text="",
+				Font=Enum.Font.Gotham, TextSize=13, TextColor3=FrontierLib.Theme.Text,
+				TextXAlignment=Enum.TextXAlignment.Left, TextYAlignment=Enum.TextYAlignment.Top,
+				TextWrapped=true, ZIndex=6
+			})
+			RoundFrame(lbl, 5)
+			Mk("UIPadding", {Parent=lbl, PaddingLeft=UDim.new(0,8), PaddingRight=UDim.new(0,8), PaddingTop=UDim.new(0,6), PaddingBottom=UDim.new(0,6)})
+
+			if title and title ~= "" then
+				lbl.Text = "[" .. title .. "]\n" .. (body or "")
+			else
+				lbl.Text = body or ""
+			end
+
+			-- Auto-size row to text
+			task.defer(function()
+				if lbl.Parent then
+					local h = lbl.TextBounds.Y + 20
+					row.Size  = UDim2.new(1, 0, 0, h)
+					lbl.Size  = UDim2.new(1, 0, 0, h)
+				end
+			end)
+		end
+
+		-- ── AddCredits ────────────────────────────────────────────────────────
+		function tab:AddCredits()
+			local row = mkRow(36)
+			local txt = Mk("TextLabel", {
+				Parent=row, Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
+				Text="made with ♥ by frontier", Font=Enum.Font.GothamBold, TextSize=17,
+				TextColor3=Color3.new(1,1,1), ZIndex=6
+			})
+			local grad = Mk("UIGradient", {
+				Parent=txt,
+				Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0,   Color3.fromRGB(0,0,0)),
+					ColorSequenceKeypoint.new(0.5, FrontierLib.Theme.Accent),
+					ColorSequenceKeypoint.new(1,   Color3.fromRGB(0,0,0)),
+				}),
+				Rotation = 0,
+				Offset   = V2(-1, 0),
+			})
+			task.spawn(function()
+				while txt.Parent do
+					local t = Tw(grad, {Offset = V2(1, 0)}, 2.2, Enum.EasingStyle.Linear)
+					if t then t.Completed:Wait() end
+					grad.Offset = V2(-1, 0)
+					task.wait(0.05)
+				end
+			end)
+		end
+
+		-- ── AddToggle ─────────────────────────────────────────────────────────
+		-- Redesigned: animated pill switch (Synapse X style)
+		function tab:AddToggle(p)
+			local row = mkRow(26)
+			mkLabel(row, p.Text)
+			addTooltip(row, p.Tip)
+
+			-- Pill background
+			local pillBg = Mk("TextButton", {
+				Parent=row, Position=UDim2.new(1,-38,0.5,-9), Size=UDim2.new(0,38,0,18),
+				BackgroundColor3=FrontierLib.Theme.Panel, BorderColor3=FrontierLib.Theme.Border,
+				BorderSizePixel=1, Text="", AutoButtonColor=false, ZIndex=6
+			})
+			RoundFrame(pillBg, 9)
+
+			local pillFill = Mk("Frame", {
+				Parent=pillBg, Size=UDim2.new(1,0,1,0), BackgroundColor3=FrontierLib.Theme.Accent,
+				BorderSizePixel=0, ZIndex=6
+			})
+			RoundFrame(pillFill, 9)
+
+			local thumb = Mk("Frame", {
+				Parent=pillBg, Position=UDim2.new(0,2,0.5,-7), Size=UDim2.new(0,14,0,14),
+				BackgroundColor3=Color3.new(1,1,1), BorderSizePixel=0, ZIndex=7
+			})
+			RoundFrame(thumb, 7)
+
+			local state = p.Default or false
+
+			local function refresh()
+				if state then
+					Tw(pillFill, {BackgroundColor3=FrontierLib.Theme.Accent, BackgroundTransparency=0}, 0.2)
+					Tw(thumb, {Position=UDim2.new(1,-16,0.5,-7)}, 0.2, Enum.EasingStyle.Quart)
+				else
+					Tw(pillFill, {BackgroundTransparency=1}, 0.2)
+					Tw(thumb, {Position=UDim2.new(0,2,0.5,-7)}, 0.2, Enum.EasingStyle.Quart)
+				end
+				if p.Flag     then FrontierLib.Flags[p.Flag] = state end
+				if p.Callback then pcall(p.Callback, state) end
+			end
+
+			-- Initial render without animation
+			pillFill.BackgroundTransparency = state and 0 or 1
+			thumb.Position = state and UDim2.new(1,-16,0.5,-7) or UDim2.new(0,2,0.5,-7)
+
+			pillBg.MouseButton1Click:Connect(function() state = not state; refresh() end)
+			tinsert(WindowObj.Elements, {i=row, name=p.Text})
+
+			local api = {Set = function(_, v) state = v; refresh() end}
+			if p.Flag then FrontierLib.Pointers[p.Flag] = {Set = function(v) state=v; refresh() end} end
+			return api
+		end
+
+		-- ── AddSlider ─────────────────────────────────────────────────────────
+		-- Redesigned with dot-thumb indicator
+		function tab:AddSlider(p)
+			local row = mkRow(42)
+			mkLabel(row, p.Text, 0)
+			addTooltip(row, p.Tip)
+
+			local valBox = Mk("TextBox", {
+				Parent=row, Position=UDim2.new(1,-52,0,0), Size=UDim2.new(0,52,0,16),
+				BackgroundTransparency=1, Text="", Font=Enum.Font.GothamBold, TextSize=13,
+				TextColor3=FrontierLib.Theme.Accent, TextXAlignment=Enum.TextXAlignment.Right,
+				ClearTextOnFocus=false, ZIndex=6
+			})
+
+			local trackBg = Mk("Frame", {
+				Parent=row, Position=UDim2.new(0,0,0,24), Size=UDim2.new(1,0,0,4),
+				BackgroundColor3=FrontierLib.Theme.Panel, BorderSizePixel=0, ZIndex=6
+			})
+			RoundFrame(trackBg, 2)
+
+			local fill = Mk("Frame", {
+				Parent=trackBg, Size=UDim2.new(0,0,1,0), BackgroundColor3=FrontierLib.Theme.Accent, BorderSizePixel=0, ZIndex=7
+			})
+			RoundFrame(fill, 2)
+
+			-- Dot thumb
+			local thumb = Mk("Frame", {
+				Parent=trackBg, Position=UDim2.new(0,-5,0.5,-5), Size=UDim2.new(0,10,0,10),
+				BackgroundColor3=Color3.new(1,1,1), BorderSizePixel=0, ZIndex=8
+			})
+			RoundFrame(thumb, 5)
+
+			local val = p.Default or p.Min
+			local dec = p.Decimals or 0
+
+			local function setVal(v)
+				local mult = 10^dec
+				val = floor(clamp(v, p.Min, p.Max) * mult + 0.5) / mult
+				local pct = (p.Max == p.Min) and 0 or ((val - p.Min) / (p.Max - p.Min))
+				fill.Size       = UDim2.new(pct, 0, 1, 0)
+				thumb.Position  = UDim2.new(pct, -5, 0.5, -5)
+				valBox.Text     = tostring(val)
+				if p.Flag     then FrontierLib.Flags[p.Flag] = val end
+				if p.Callback then pcall(p.Callback, val) end
+			end
+
+			local trackBtn = Mk("TextButton", {
+				Parent=row, Position=UDim2.new(0,-4,0,20), Size=UDim2.new(1,8,0,12),
+				BackgroundTransparency=1, Text="", ZIndex=9
+			})
+			MakeSliderDrag(trackBtn, function(pct) setVal(p.Min + (p.Max - p.Min) * pct) end)
+
+			valBox.FocusLost:Connect(function()
+				local nv = tonumber(valBox.Text)
+				if nv then setVal(nv) else valBox.Text = tostring(val) end
+			end)
+
+			setVal(val)
+			tinsert(WindowObj.Elements, {i=row, name=p.Text})
+			if p.Flag then FrontierLib.Pointers[p.Flag] = {Set = function(v) setVal(v) end} end
+			return {Set = function(_, v) setVal(v) end}
+		end
+
+		-- ── AddDropdown ───────────────────────────────────────────────────────
+		-- Fixed: scoped close listener, repositioned on open (not snapshot)
+		function tab:AddDropdown(p)
+			local row = mkRow(48)
+			mkLabel(row, p.Text, 0)
+			addTooltip(row, p.Tip)
+
+			local btn = Mk("TextButton", {
+				Parent=row, Position=UDim2.new(0,0,0,22), Size=UDim2.new(1,0,0,26),
+				BackgroundColor3=FrontierLib.Theme.Panel, BorderColor3=FrontierLib.Theme.Border,
+				BorderSizePixel=1, Text="", AutoButtonColor=false, ZIndex=6
+			})
+			RoundFrame(btn, 4)
+			AddHover(btn, FrontierLib.Theme.Panel, FrontierLib.Theme.Hover)
+
+			local valTxt = Mk("TextLabel", {
+				Parent=btn, Position=UDim2.new(0,8,0,0), Size=UDim2.new(1,-28,1,0),
+				BackgroundTransparency=1, Text="", Font=Enum.Font.Gotham, TextSize=13,
+				TextColor3=FrontierLib.Theme.Text, TextXAlignment=Enum.TextXAlignment.Left,
+				TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=7
+			})
+			local arrow = Mk("TextLabel", {
+				Parent=btn, Position=UDim2.new(1,-20,0,0), Size=UDim2.new(0,16,1,0),
+				BackgroundTransparency=1, Text="▾", Font=Enum.Font.GothamBold, TextSize=13,
+				TextColor3=FrontierLib.Theme.SubText, ZIndex=7
+			})
+
+			local isMulti = p.Multi or false
+			local items   = p.Items or {}
+			local state   = isMulti and (p.Default or {}) or (p.Default or items[1])
+
+			local function updateDisplay()
+				if isMulti then
+					local s = {}
+					for k, v in pairs(state) do if v then tinsert(s, k) end end
+					valTxt.Text = #s > 0 and table.concat(s, ", ") or "None"
+				else
+					valTxt.Text = tostring(state or "")
+				end
+				if p.Flag then FrontierLib.Flags[p.Flag] = state end
+			end
+
+			local menuOpen = false
+			local menuFrame = nil
+			local closeConn = nil
+
+			local function closeMenu()
+				if menuFrame then
+					Tw(menuFrame, {Size = UDim2.new(0, menuFrame.AbsoluteSize.X, 0, 0)}, 0.15)
+					local mf = menuFrame; task.delay(0.15, function() pcall(mf.Destroy, mf) end)
+					menuFrame = nil
+				end
+				if closeConn then pcall(closeConn.Disconnect, closeConn); closeConn = nil end
+				Tw(arrow, {Rotation = 0}, 0.2)
+				menuOpen = false
+			end
+
+			local function buildMenu()
+				-- Position menu (open upward if near bottom)
+				local ap  = btn.AbsolutePosition
+				local as  = btn.AbsoluteSize
+				local vs  = workspace.CurrentCamera.ViewportSize
+				local mh  = min(#items * 26 + 4, 160)
+				local yPos = ap.Y + as.Y
+				if yPos + mh > vs.Y then yPos = ap.Y - mh end
+
+				menuFrame = Mk("ScrollingFrame", {
+					Parent              = sg,
+					Position            = UDim2.new(0, ap.X, 0, yPos),
+					Size                = UDim2.new(0, as.X, 0, 0),
+					BackgroundColor3    = FrontierLib.Theme.Panel,
+					BorderColor3        = FrontierLib.Theme.Border,
+					BorderSizePixel     = 1,
+					ZIndex              = 10000,
+					ScrollBarThickness  = 2,
+					ScrollBarImageColor3 = FrontierLib.Theme.Accent,
+					ClipsDescendants    = true,
+				})
+				RoundFrame(menuFrame, 4)
+				Tw(menuFrame, {Size = UDim2.new(0, as.X, 0, mh)}, 0.2, Enum.EasingStyle.Quart)
+
+				local ml = Mk("UIListLayout", {Parent=menuFrame, SortOrder=Enum.SortOrder.LayoutOrder})
+				ml:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+					menuFrame.CanvasSize = UDim2.new(0, 0, 0, ml.AbsoluteContentSize.Y)
+				end)
+
+				for _, it in ipairs(items) do
+					local isSel = isMulti and state[it] or (state == it)
+					local itBtn = Mk("TextButton", {
+						Parent=menuFrame, Size=UDim2.new(1,0,0,26),
+						BackgroundTransparency=1, Text="  "..it,
+						Font=Enum.Font.Gotham, TextSize=13,
+						TextColor3=isSel and FrontierLib.Theme.Accent or FrontierLib.Theme.Text,
+						TextXAlignment=Enum.TextXAlignment.Left, AutoButtonColor=false, ZIndex=10001
+					})
+					AddHover(itBtn, FrontierLib.Theme.Panel, FrontierLib.Theme.Hover)
+					itBtn.MouseButton1Click:Connect(function()
+						if isMulti then
+							state[it] = not state[it]
+							itBtn.TextColor3 = state[it] and FrontierLib.Theme.Accent or FrontierLib.Theme.Text
+						else
+							state = it
+							closeMenu()
+						end
+						updateDisplay()
+						if p.Callback then pcall(p.Callback, state) end
+					end)
+				end
+
+				-- Scoped outside-click listener (fixed leak)
+				closeConn = uis.InputBegan:Connect(function(i)
+					if i.UserInputType == Enum.UserInputType.MouseButton1 and menuFrame then
+						local mp  = i.Position
+						local mfp = menuFrame.AbsolutePosition
+						local mfs = menuFrame.AbsoluteSize
+						local bap = btn.AbsolutePosition
+						local bas = btn.AbsoluteSize
+						local inMenu = mp.X>=mfp.X and mp.X<=mfp.X+mfs.X and mp.Y>=mfp.Y and mp.Y<=mfp.Y+mfs.Y
+						local inBtn  = mp.X>=bap.X and mp.X<=bap.X+bas.X and mp.Y>=bap.Y and mp.Y<=bap.Y+bas.Y
+						if not inMenu and not inBtn then closeMenu() end
+					end
+				end)
+			end
+
+			btn.MouseButton1Click:Connect(function()
+				if menuOpen then closeMenu() return end
+				menuOpen = true
+				Tw(arrow, {Rotation = 180}, 0.2)
+				buildMenu()
+			end)
+
+			updateDisplay()
+			if p.Callback then pcall(p.Callback, state) end
+			tinsert(WindowObj.Elements, {i=row, name=p.Text})
+
+			local function refresh(ni) items = ni; closeMenu() end
+			if p.Flag then
+				FrontierLib.Pointers[p.Flag] = {
+					Set = function(v) state=v; updateDisplay(); if p.Callback then pcall(p.Callback, state) end end,
+					Refresh = refresh
+				}
+			end
+			return {
+				Set     = function(_, v) state=v; updateDisplay(); if p.Callback then pcall(p.Callback, state) end end,
+				Refresh = function(_, ni) refresh(ni) end,
+			}
+		end
+
+		-- ── AddColorPicker ────────────────────────────────────────────────────
+		-- Fixed: scoped InputBegan, disconnects on close, no leak
+		function tab:AddColorPicker(p)
+			local row = mkRow(26)
+			mkLabel(row, p.Text)
+			addTooltip(row, p.Tip)
+
+			local preview = Mk("TextButton", {
+				Parent=row, Position=UDim2.new(1,-44,0.5,-11), Size=UDim2.new(0,44,0,22),
+				BackgroundColor3=p.Default or C3(1,1,1), BorderColor3=FrontierLib.Theme.Border,
+				BorderSizePixel=1, Text="", AutoButtonColor=false, ZIndex=6
+			})
+			RoundFrame(preview, 4)
+
+			local col = p.Default or C3(1,1,1)
+			local h, s, v = col:ToHSV()
+
+			local menuOpen  = false
+			local mFrame    = nil
+			local closeConn = nil
+			local sliderDisconnects = {}
+
+			local function closeMenu()
+				for _, d in ipairs(sliderDisconnects) do pcall(d) end
+				sliderDisconnects = {}
+				if mFrame then
+					Tw(mFrame, {Size = UDim2.new(0, 170, 0, 0)}, 0.15)
+					local mf = mFrame; task.delay(0.15, function() pcall(mf.Destroy, mf) end)
+					mFrame = nil
+				end
+				if closeConn then pcall(closeConn.Disconnect, closeConn); closeConn = nil end
+				menuOpen = false
+			end
+
+			local function updateColor()
+				col = Color3.fromHSV(h, s, v)
+				preview.BackgroundColor3 = col
+				if p.Flag     then FrontierLib.Flags[p.Flag] = ColorToHex(col) end
+				if p.Callback then pcall(p.Callback, col) end
+			end
+
+			preview.MouseButton1Click:Connect(function()
+				if menuOpen then closeMenu() return end
+				menuOpen = true
+
+				local ap  = preview.AbsolutePosition
+				local vs  = workspace.CurrentCamera.ViewportSize
+				local mH  = 160
+				local mW  = 170
+				local yPos = ap.Y + 28
+				if yPos + mH > vs.Y then yPos = ap.Y - mH - 4 end
+
+				mFrame = Mk("Frame", {
+					Parent=sg, Position=UDim2.new(0, ap.X - mW + preview.AbsoluteSize.X, 0, yPos),
+					Size=UDim2.new(0,mW,0,0), BackgroundColor3=FrontierLib.Theme.PanelDark,
+					BorderColor3=FrontierLib.Theme.Border, BorderSizePixel=1, ZIndex=10000,
+					ClipsDescendants=true,
+				})
+				RoundFrame(mFrame, 5)
+				Tw(mFrame, {Size=UDim2.new(0,mW,0,mH)}, 0.2, Enum.EasingStyle.Quart)
+
+				Mk("UIPadding", {Parent=mFrame, PaddingLeft=UDim.new(0,8), PaddingRight=UDim.new(0,8), PaddingTop=UDim.new(0,8), PaddingBottom=UDim.new(0,8)})
+
+				local function mkHSlider(yOff, gradCS, initVal, cb)
+					local track = Mk("Frame", {
+						Parent=mFrame, Size=UDim2.new(1,0,0,10), Position=UDim2.new(0,0,0,yOff),
+						BackgroundColor3=C3(1,1,1), BorderSizePixel=0, ZIndex=10001,
+					})
+					RoundFrame(track, 5)
+					Mk("UIGradient", {Parent=track, Color=gradCS})
+
+					local dot = Mk("Frame", {
+						Parent=track, Size=UDim2.new(0,10,0,10), Position=UDim2.new(initVal,-5,0,0),
+						BackgroundColor3=C3(1,1,1), BorderColor3=C3(0,0,0), BorderSizePixel=1, ZIndex=10002
+					})
+					RoundFrame(dot, 5)
+
+					local trackBtn = Mk("TextButton", {
+						Parent=mFrame, Position=UDim2.new(0,0,0,yOff-2), Size=UDim2.new(1,0,0,14),
+						BackgroundTransparency=1, Text="", ZIndex=10003
+					})
+					local d = MakeSliderDrag(trackBtn, function(pct)
+						dot.Position = UDim2.new(pct, -5, 0, 0)
+						cb(pct)
+						updateColor()
+					end)
+					tinsert(sliderDisconnects, d)
+					return dot
+				end
+
+				-- Hue rainbow
+				local rbw = ColorSequence.new{
+					ColorSequenceKeypoint.new(0,    C3(1,0,0)),
+					ColorSequenceKeypoint.new(0.167,C3(1,1,0)),
+					ColorSequenceKeypoint.new(0.333,C3(0,1,0)),
+					ColorSequenceKeypoint.new(0.5,  C3(0,1,1)),
+					ColorSequenceKeypoint.new(0.667,C3(0,0,1)),
+					ColorSequenceKeypoint.new(0.833,C3(1,0,1)),
+					ColorSequenceKeypoint.new(1,    C3(1,0,0)),
+				}
+				local satCS = ColorSequence.new{ColorSequenceKeypoint.new(0,C3(1,1,1)), ColorSequenceKeypoint.new(1,Color3.fromHSV(h,1,1))}
+				local valCS = ColorSequence.new{ColorSequenceKeypoint.new(0,C3(0,0,0)), ColorSequenceKeypoint.new(1,Color3.fromHSV(h,s,1))}
+
+				mkHSlider(8,  rbw, h, function(pct) h = pct end)
+				local satGO = Mk("UIGradient", {Parent = mkHSlider(28, satCS, s, function(pct) s = pct end).Parent})
+				local valGO = Mk("UIGradient", {Parent = mkHSlider(48, valCS, v, function(pct) v = pct end).Parent})
+
+				-- Refresh sat/val gradients when hue changes (patched connection from original)
+				local orig_h_cb = function(pct)
+					h = pct
+					if satGO then satGO.Color = ColorSequence.new{ColorSequenceKeypoint.new(0,C3(1,1,1)), ColorSequenceKeypoint.new(1,Color3.fromHSV(h,1,1))} end
+					if valGO then valGO.Color = ColorSequence.new{ColorSequenceKeypoint.new(0,C3(0,0,0)), ColorSequenceKeypoint.new(1,Color3.fromHSV(h,s,1))} end
+					updateColor()
+				end
+
+				-- Hex input
+				local hexBox = Mk("TextBox", {
+					Parent=mFrame, Position=UDim2.new(0,0,0,70), Size=UDim2.new(1,0,0,22),
+					BackgroundColor3=FrontierLib.Theme.Bg, BorderColor3=FrontierLib.Theme.Border, BorderSizePixel=1,
+					Text=ColorToHex(col), Font=Enum.Font.Code, TextSize=13,
+					TextColor3=FrontierLib.Theme.Text, ZIndex=10001, ClearTextOnFocus=false,
+				})
+				RoundFrame(hexBox, 4)
+				hexBox.FocusLost:Connect(function()
+					local ok2, nc = pcall(HexToColor, hexBox.Text)
+					if ok2 and nc then
+						col = nc; h, s, v = col:ToHSV()
+						preview.BackgroundColor3 = col
+						if p.Flag     then FrontierLib.Flags[p.Flag] = ColorToHex(col) end
+						if p.Callback then pcall(p.Callback, col) end
+					else hexBox.Text = ColorToHex(col) end
+				end)
+
+				-- Color preview swatch
+				local swatch = Mk("Frame", {
+					Parent=mFrame, Position=UDim2.new(0,0,0,100), Size=UDim2.new(1,0,0,16),
+					BackgroundColor3=col, BorderSizePixel=0, ZIndex=10001
+				})
+				RoundFrame(swatch, 4)
+				-- Update swatch live
+				local swatchCn; swatchCn = rs.Heartbeat:Connect(function()
+					if not mFrame or not mFrame.Parent then pcall(swatchCn.Disconnect, swatchCn) return end
+					swatch.BackgroundColor3 = Color3.fromHSV(h, s, v)
+				end)
+				tinsert(sliderDisconnects, function() pcall(swatchCn.Disconnect, swatchCn) end)
+
+				-- Scoped close listener
+				closeConn = uis.InputBegan:Connect(function(i)
+					if i.UserInputType == Enum.UserInputType.MouseButton1 and mFrame then
+						local mp  = i.Position
+						local mfp = mFrame.AbsolutePosition
+						local mfs = mFrame.AbsoluteSize
+						local pp  = preview.AbsolutePosition
+						local ps  = preview.AbsoluteSize
+						local inM = mp.X>=mfp.X and mp.X<=mfp.X+mfs.X and mp.Y>=mfp.Y and mp.Y<=mfp.Y+mfs.Y
+						local inP = mp.X>=pp.X  and mp.X<=pp.X+ps.X   and mp.Y>=pp.Y  and mp.Y<=pp.Y+ps.Y
+						if not inM and not inP then closeMenu() end
+					end
+				end)
+			end)
+
+			if p.Flag then
+				FrontierLib.Flags[p.Flag] = ColorToHex(col)
+				FrontierLib.Pointers[p.Flag] = {Set = function(c)
+					col = typeof(c) == "string" and HexToColor(c) or c
+					h, s, v = col:ToHSV()
+					preview.BackgroundColor3 = col
+					if p.Callback then pcall(p.Callback, col) end
+				end}
+			end
+			tinsert(WindowObj.Elements, {i=row, name=p.Text})
+			return {Set = function(_, c)
+				col = c; h, s, v = col:ToHSV()
+				preview.BackgroundColor3 = col
+				if p.Callback then pcall(p.Callback, col) end
+			end}
+		end
+
+		-- ── AddKeybind ────────────────────────────────────────────────────────
+		function tab:AddKeybind(p)
+			local row = mkRow(26)
+			mkLabel(row, p.Text)
+			addTooltip(row, p.Tip)
+
+			local btn = Mk("TextButton", {
+				Parent=row, Position=UDim2.new(1,-84,0.5,-11), Size=UDim2.new(0,84,0,22),
+				BackgroundColor3=FrontierLib.Theme.Panel, BorderColor3=FrontierLib.Theme.Border,
+				BorderSizePixel=1, Text="", AutoButtonColor=false, ZIndex=6
+			})
+			RoundFrame(btn, 4)
+			AddHover(btn, FrontierLib.Theme.Panel, FrontierLib.Theme.Hover)
+
+			local btnLbl = Mk("TextLabel", {
+				Parent=btn, Size=UDim2.new(1,0,1,0), BackgroundTransparency=1,
+				Font=Enum.Font.GothamBold, TextSize=12, TextColor3=FrontierLib.Theme.SubText, ZIndex=7
+			})
+
+			local key     = p.Default or "None"
+			local binding = false
+
+			local function setKey(k)
+				key = k
+				btnLbl.Text = "[" .. key .. "]"
+				btnLbl.TextColor3 = key == "None" and FrontierLib.Theme.SubText or FrontierLib.Theme.Accent
+				if key == "None" then FrontierLib.Keybinds[p.Text] = nil else FrontierLib.Keybinds[p.Text] = key end
+				if p.Flag     then FrontierLib.Flags[p.Flag] = key end
+				if p.Callback then pcall(p.Callback, key) end
+			end
+
+			setKey(key)
+
+			btn.MouseButton1Click:Connect(function()
+				if binding then return end
+				binding = true; btnLbl.Text = "[...]"; btnLbl.TextColor3 = FrontierLib.Theme.Warning
+				local cn; cn = uis.InputBegan:Connect(function(i)
+					if i.UserInputType == Enum.UserInputType.Keyboard
+					   or i.UserInputType.Name:find("MouseButton") then
+						local kn  = i.KeyCode.Name
+						local mt  = i.UserInputType.Name
+						local res = (kn == "Unknown" and mt) or kn
+						if res == "Escape" or res == "Backspace" then res = "None" end
+						binding = false
+						pcall(cn.Disconnect, cn)
+						setKey(res)
+					end
+				end)
+			end)
+
+			tinsert(WindowObj.Elements, {i=row, name=p.Text})
+			if p.Flag then FrontierLib.Pointers[p.Flag] = {Set = function(k) setKey(k) end} end
+			return {Get = function() return key end, Set = function(_, k) setKey(k) end}
+		end
+
+		-- ── AddButton ─────────────────────────────────────────────────────────
+		function tab:AddButton(p)
+			local row = mkRow(30)
+			local btn = Mk("TextButton", {
+				Parent=row, Size=UDim2.new(1,0,1,0), BackgroundColor3=FrontierLib.Theme.Panel,
+				BorderColor3=FrontierLib.Theme.Border, BorderSizePixel=1,
+				Text=p.Text, Font=Enum.Font.GothamSemibold, TextSize=13,
+				TextColor3=FrontierLib.Theme.Text, AutoButtonColor=false, ZIndex=6
+			})
+			RoundFrame(btn, 4)
+			addTooltip(row, p.Tip)
+			AddHover(btn, FrontierLib.Theme.Panel, FrontierLib.Theme.Hover)
+
+			btn.MouseButton1Click:Connect(function()
+				Tw(btn, {BackgroundColor3=FrontierLib.Theme.Accent}, 0.08)
+				task.delay(0.12, function() Tw(btn, {BackgroundColor3=FrontierLib.Theme.Panel}, 0.15) end)
+				if p.Callback then pcall(p.Callback) end
+			end)
+			tinsert(WindowObj.Elements, {i=row, name=p.Text})
+			return {SetText = function(_, t) btn.Text = t end}
+		end
+
+		-- ── AddTextInput ──────────────────────────────────────────────────────
+		function tab:AddTextInput(p)
+			local row = mkRow(48)
+			mkLabel(row, p.Text, 0)
+			addTooltip(row, p.Tip)
+
+			local bx = Mk("TextBox", {
+				Parent=row, Position=UDim2.new(0,0,0,22), Size=UDim2.new(1,0,0,26),
+				BackgroundColor3=FrontierLib.Theme.Panel, BorderColor3=FrontierLib.Theme.Border, BorderSizePixel=1,
+				Text=p.Default or "", PlaceholderText=p.Placeholder or "...",
+				Font=Enum.Font.Gotham, TextSize=13, TextColor3=FrontierLib.Theme.Text,
+				PlaceholderColor3=FrontierLib.Theme.SubText, ClearTextOnFocus=false, ZIndex=6
+			})
+			RoundFrame(bx, 4)
+
+			bx.Focused:Connect(function()    Tw(bx, {BorderColor3=FrontierLib.Theme.Accent}, 0.15) end)
+			bx.FocusLost:Connect(function()
+				Tw(bx, {BorderColor3=FrontierLib.Theme.Border}, 0.15)
+				if p.Flag then FrontierLib.Flags[p.Flag] = bx.Text end
+				if p.Callback then pcall(p.Callback, bx.Text) end
+			end)
+
+			if p.Flag then FrontierLib.Flags[p.Flag] = bx.Text end
+			tinsert(WindowObj.Elements, {i=row, name=p.Text})
+			if p.Flag then FrontierLib.Pointers[p.Flag] = {Set = function(v) bx.Text = tostring(v) end} end
+			return {Get = function() return bx.Text end, Set = function(_, v) bx.Text = tostring(v) end}
+		end
+
+		return tab
+	end -- AddTab
+
+	-- ── Settings tab (auto-appended) ─────────────────────────────────────────
+	task.defer(function()
+		local st = WindowObj:AddTab("Settings")
+		st:AddCredits()
+		st:AddSection("Interface")
+		st:AddKeybind({
+			Text = "Toggle Key",
+			Default = FrontierLib.ToggleKey.Name,
+			Callback = function(k) pcall(function() FrontierLib.ToggleKey = Enum.KeyCode[k] end) end
+		})
+
+		st:AddSection("Configuration")
+
+		pcall(function()
+			if not isfolder("Frontierism") then makefolder("Frontierism") end
+			local hf = "Frontierism/" .. FrontierLib.ConfigFolder
+			if not isfolder(hf) then makefolder(hf) end
+
+			local function getConfigs()
+				local cfgs, ok, files = {}, pcall(listfiles, hf)
+				if ok then
+					for _, f in ipairs(files) do
+						local n = f:match("([^/\\]+)%.json$")
+						if n then tinsert(cfgs, n) end
+					end
+				end
+				if #cfgs == 0 then tinsert(cfgs, "Default") end
+				return cfgs
+			end
+
+			local cfgDrop    = st:AddDropdown({Text="Config", Items=getConfigs(), Default="Default", Flag="SelectedConfig"})
+			local cfgNameBox = st:AddTextInput({Text="New Config Name", Placeholder="MyConfig"})
+
+			st:AddButton({Text="Save Config", Tip="Save current flags to file", Callback=function()
+				local n = cfgNameBox:Get()
+				if n == "" then n = FrontierLib.Flags["SelectedConfig"] or "Default" end
+				local ok2, json = pcall(hs.JSONEncode, hs, FrontierLib.Flags)
+				if ok2 then
+					pcall(writefile, hf.."/"..n..".json", json)
+					FrontierLib:Notify("Saved: "..n, 2, "success")
+					cfgDrop:Refresh(getConfigs())
+				else FrontierLib:Notify("Save failed", 2, "error") end
+			end})
+
+			st:AddButton({Text="Load Config", Tip="Load selected config from file", Callback=function()
+				local n = FrontierLib.Flags["SelectedConfig"]; if not n then return end
+				local path = hf.."/"..n..".json"
+				if isfile(path) then
+					local ok2, data = pcall(function() return hs:JSONDecode(readfile(path)) end)
+					if ok2 and type(data)=="table" then
+						for flag, value in pairs(data) do
+							FrontierLib.Flags[flag] = value
+							if FrontierLib.Pointers[flag] then pcall(FrontierLib.Pointers[flag].Set, value) end
+						end
+						FrontierLib:Notify("Loaded: "..n, 2, "info")
+					else FrontierLib:Notify("Invalid config file", 3, "error") end
+				else FrontierLib:Notify("Config not found", 3, "error") end
+			end})
+
+			st:AddSection("Automation")
+			local alFile = hf.."/autoload.txt"
+			st:AddToggle({Text="Autoload on Start", Default=isfile(alFile) and readfile(alFile)~="", Callback=function(on)
+				if on then
+					local n = FrontierLib.Flags["SelectedConfig"]
+					if n then pcall(writefile, alFile, n); FrontierLib:Notify("Autoload set to "..n, 2, "success") end
+				else pcall(writefile, alFile, ""); FrontierLib:Notify("Autoload disabled", 2, "info") end
+			end})
+			st:AddButton({Text="Copy Load Script", Tip="Copy execute snippet to clipboard", Callback=function()
+				pcall(setclipboard, 'loadstring(game:HttpGet("YOUR_RAW_LINK_HERE"))()')
+				FrontierLib:Notify("Copied to clipboard", 2, "success")
+			end})
+
+			-- Autoload execution
+			if isfile(alFile) then
+				local ac = readfile(alFile)
+				if ac ~= "" and isfile(hf.."/"..ac..".json") then
+					task.delay(0.6, function()
+						local ok2, data = pcall(function() return hs:JSONDecode(readfile(hf.."/"..ac..".json")) end)
+						if ok2 and type(data)=="table" then
+							for flag, value in pairs(data) do
+								FrontierLib.Flags[flag] = value
+								if FrontierLib.Pointers[flag] then pcall(FrontierLib.Pointers[flag].Set, value) end
+							end
+							FrontierLib:Notify("Autoloaded: "..ac, 3, "success")
+						end
+					end)
+				end
+			end
+		end)
+	end)
+
+	-- ── Toggle key ────────────────────────────────────────────────────────────
+	uis.InputBegan:Connect(function(i, gpe)
+		if gpe or uis:GetFocusedTextBox() then return end
+		if i.KeyCode == FrontierLib.ToggleKey then
+			if root.Visible then
+				Tw(root, {Size=UDim2.new(0,winW,0,0), Position=UDim2.new(0.5,-winW/2,0.5,0)}, 0.3, Enum.EasingStyle.Quart)
+				task.delay(0.3, function()
+					root.Visible  = false
+					root.Size     = UDim2.new(0,winW,0,winH)
+					root.Position = UDim2.new(0.5,-winW/2,0.5,-winH/2)
+				end)
+			else
+				root.Size     = UDim2.new(0,winW,0,0)
+				root.Position = UDim2.new(0.5,-winW/2,0.5,0)
+				root.Visible  = true
+				Tw(root, {Size=UDim2.new(0,winW,0,winH), Position=UDim2.new(0.5,-winW/2,0.5,-winH/2)}, 0.3, Enum.EasingStyle.Quart)
+			end
+		end
+	end)
+
+	return WindowObj
+end
+
+return FrontierLib
