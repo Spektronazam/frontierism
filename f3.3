@@ -1,0 +1,4742 @@
+--// frontierism UI Library v2.0.0
+--// Synapse-X Inspired Standalone UI Library
+--// Full-featured: Key System, Watermark, Discord, Secure Mode, Dependency System,
+--// Spring Animations, Theme Presets, Console, Dialogs, Auto-Save, and 15+ Components
+--// (c) 2025 frontier — made w/ love
+
+----------------------------------------------------------------------------------------------------
+-- Core Table & Constants
+----------------------------------------------------------------------------------------------------
+
+local FrontierLib = {
+	Version = "2.0.0",
+	Flags = {},
+	Pointers = {},
+	Keybinds = {},
+
+	ToggleKey = Enum.KeyCode.Insert,
+	ConfigFolder = "DefaultHub",
+	SecureMode = false,
+
+	_Connections = {},
+	_ThemeIndex = {},
+	_Guis = {},
+	_Windows = {},
+	_Alive = true,
+	_FrameCallbacks = {},
+	_DependencyMap = {},
+	_NotifHistory = {},
+	_Signals = {},
+	_Springs = {},
+}
+
+local Z = {
+	Shadow = 3,
+	Root = 5,
+	Topbar = 10,
+	TopbarBtn = 12,
+	TopbarDrag = 14,
+	Sidebar = 15,
+	SidebarEl = 18,
+	Content = 20,
+	Section = 25,
+	SectionHeader = 27,
+	Element = 30,
+	ElementInner = 35,
+	Dropdown = 100,
+	DropdownItem = 102,
+	ColorPicker = 110,
+	ColorPickerInner = 115,
+	Tooltip = 200,
+	Notification = 300,
+	NotificationInner = 305,
+	Watermark = 400,
+	Dialog = 500,
+	DialogInner = 505,
+	KeySystem = 1000,
+	KeySystemInner = 1005,
+	Intro = 9999,
+	IntroInner = 10000,
+}
+
+----------------------------------------------------------------------------------------------------
+-- Theme Presets
+----------------------------------------------------------------------------------------------------
+
+local ThemePresets = {
+	Dark = {
+		Accent = Color3.fromRGB(255, 140, 0),
+		Bg = Color3.fromRGB(32, 32, 32),
+		Topbar = Color3.fromRGB(26, 26, 26),
+		Sidebar = Color3.fromRGB(28, 28, 28),
+		Panel = Color3.fromRGB(42, 42, 42),
+		PanelDark = Color3.fromRGB(24, 24, 24),
+		PanelLight = Color3.fromRGB(55, 55, 55),
+		Border = Color3.fromRGB(15, 15, 15),
+		Text = Color3.fromRGB(245, 245, 245),
+		SubText = Color3.fromRGB(185, 185, 185),
+		Hover = Color3.fromRGB(64, 64, 64),
+		Disabled = Color3.fromRGB(95, 95, 95),
+		Success = Color3.fromRGB(90, 255, 140),
+		Warning = Color3.fromRGB(255, 210, 90),
+		Error = Color3.fromRGB(255, 80, 80),
+	},
+	Midnight = {
+		Accent = Color3.fromRGB(130, 140, 255),
+		Bg = Color3.fromRGB(18, 18, 32),
+		Topbar = Color3.fromRGB(14, 14, 28),
+		Sidebar = Color3.fromRGB(16, 16, 30),
+		Panel = Color3.fromRGB(28, 28, 48),
+		PanelDark = Color3.fromRGB(12, 12, 24),
+		PanelLight = Color3.fromRGB(40, 40, 65),
+		Border = Color3.fromRGB(8, 8, 20),
+		Text = Color3.fromRGB(230, 230, 250),
+		SubText = Color3.fromRGB(150, 150, 190),
+		Hover = Color3.fromRGB(50, 50, 80),
+		Disabled = Color3.fromRGB(70, 70, 100),
+		Success = Color3.fromRGB(80, 240, 160),
+		Warning = Color3.fromRGB(255, 200, 80),
+		Error = Color3.fromRGB(255, 90, 90),
+	},
+	Ocean = {
+		Accent = Color3.fromRGB(0, 200, 200),
+		Bg = Color3.fromRGB(16, 28, 32),
+		Topbar = Color3.fromRGB(12, 22, 26),
+		Sidebar = Color3.fromRGB(14, 24, 28),
+		Panel = Color3.fromRGB(24, 40, 46),
+		PanelDark = Color3.fromRGB(10, 20, 24),
+		PanelLight = Color3.fromRGB(36, 56, 64),
+		Border = Color3.fromRGB(6, 16, 20),
+		Text = Color3.fromRGB(220, 245, 245),
+		SubText = Color3.fromRGB(140, 185, 190),
+		Hover = Color3.fromRGB(40, 65, 72),
+		Disabled = Color3.fromRGB(60, 85, 92),
+		Success = Color3.fromRGB(80, 255, 180),
+		Warning = Color3.fromRGB(255, 220, 80),
+		Error = Color3.fromRGB(255, 100, 100),
+	},
+	Rose = {
+		Accent = Color3.fromRGB(240, 100, 160),
+		Bg = Color3.fromRGB(32, 22, 28),
+		Topbar = Color3.fromRGB(26, 18, 24),
+		Sidebar = Color3.fromRGB(28, 20, 26),
+		Panel = Color3.fromRGB(46, 32, 40),
+		PanelDark = Color3.fromRGB(22, 14, 20),
+		PanelLight = Color3.fromRGB(60, 44, 54),
+		Border = Color3.fromRGB(16, 10, 14),
+		Text = Color3.fromRGB(250, 235, 242),
+		SubText = Color3.fromRGB(200, 165, 180),
+		Hover = Color3.fromRGB(70, 50, 62),
+		Disabled = Color3.fromRGB(100, 75, 88),
+		Success = Color3.fromRGB(100, 240, 160),
+		Warning = Color3.fromRGB(255, 210, 110),
+		Error = Color3.fromRGB(255, 80, 90),
+	},
+	Synapse = {
+		Accent = Color3.fromRGB(255, 200, 40),
+		Bg = Color3.fromRGB(30, 30, 30),
+		Topbar = Color3.fromRGB(22, 22, 22),
+		Sidebar = Color3.fromRGB(24, 24, 24),
+		Panel = Color3.fromRGB(38, 38, 38),
+		PanelDark = Color3.fromRGB(18, 18, 18),
+		PanelLight = Color3.fromRGB(52, 52, 52),
+		Border = Color3.fromRGB(12, 12, 12),
+		Text = Color3.fromRGB(240, 240, 240),
+		SubText = Color3.fromRGB(170, 170, 170),
+		Hover = Color3.fromRGB(58, 58, 58),
+		Disabled = Color3.fromRGB(85, 85, 85),
+		Success = Color3.fromRGB(90, 255, 140),
+		Warning = Color3.fromRGB(255, 210, 90),
+		Error = Color3.fromRGB(255, 80, 80),
+	},
+	Monokai = {
+		Accent = Color3.fromRGB(166, 226, 46),
+		Bg = Color3.fromRGB(39, 40, 34),
+		Topbar = Color3.fromRGB(32, 33, 28),
+		Sidebar = Color3.fromRGB(34, 35, 30),
+		Panel = Color3.fromRGB(50, 51, 44),
+		PanelDark = Color3.fromRGB(28, 29, 24),
+		PanelLight = Color3.fromRGB(62, 63, 56),
+		Border = Color3.fromRGB(22, 23, 18),
+		Text = Color3.fromRGB(248, 248, 242),
+		SubText = Color3.fromRGB(177, 177, 166),
+		Hover = Color3.fromRGB(68, 69, 60),
+		Disabled = Color3.fromRGB(98, 99, 88),
+		Success = Color3.fromRGB(166, 226, 46),
+		Warning = Color3.fromRGB(253, 151, 31),
+		Error = Color3.fromRGB(249, 38, 114),
+	},
+	Nord = {
+		Accent = Color3.fromRGB(136, 192, 208),
+		Bg = Color3.fromRGB(46, 52, 64),
+		Topbar = Color3.fromRGB(40, 46, 58),
+		Sidebar = Color3.fromRGB(42, 48, 60),
+		Panel = Color3.fromRGB(59, 66, 82),
+		PanelDark = Color3.fromRGB(36, 42, 54),
+		PanelLight = Color3.fromRGB(67, 76, 94),
+		Border = Color3.fromRGB(30, 36, 48),
+		Text = Color3.fromRGB(229, 233, 240),
+		SubText = Color3.fromRGB(163, 177, 198),
+		Hover = Color3.fromRGB(76, 86, 106),
+		Disabled = Color3.fromRGB(96, 106, 126),
+		Success = Color3.fromRGB(163, 190, 140),
+		Warning = Color3.fromRGB(235, 203, 139),
+		Error = Color3.fromRGB(191, 97, 106),
+	},
+	Light = {
+		Accent = Color3.fromRGB(60, 120, 240),
+		Bg = Color3.fromRGB(242, 242, 245),
+		Topbar = Color3.fromRGB(235, 235, 240),
+		Sidebar = Color3.fromRGB(238, 238, 242),
+		Panel = Color3.fromRGB(255, 255, 255),
+		PanelDark = Color3.fromRGB(228, 228, 235),
+		PanelLight = Color3.fromRGB(248, 248, 252),
+		Border = Color3.fromRGB(210, 210, 218),
+		Text = Color3.fromRGB(30, 30, 40),
+		SubText = Color3.fromRGB(110, 110, 130),
+		Hover = Color3.fromRGB(218, 218, 228),
+		Disabled = Color3.fromRGB(175, 175, 190),
+		Success = Color3.fromRGB(50, 180, 100),
+		Warning = Color3.fromRGB(220, 170, 30),
+		Error = Color3.fromRGB(220, 60, 60),
+	},
+}
+
+FrontierLib.Theme = {}
+for k, v in pairs(ThemePresets.Dark) do
+	FrontierLib.Theme[k] = v
+end
+FrontierLib.ThemePresets = ThemePresets
+
+----------------------------------------------------------------------------------------------------
+-- Services / Environment
+----------------------------------------------------------------------------------------------------
+
+local uis = game:GetService("UserInputService")
+local ts = game:GetService("TweenService")
+local rs = game:GetService("RunService")
+local plrs = game:GetService("Players")
+local hs = game:GetService("HttpService")
+local txts = game:GetService("TextService")
+local lighting = game:GetService("Lighting")
+local gs = game:GetService("GuiService")
+local stats = game:GetService("Stats")
+
+local lp = plrs.LocalPlayer
+
+local raw_writefile = writefile
+local raw_readfile = readfile
+local raw_isfile = isfile
+local raw_isfolder = isfolder
+local raw_makefolder = makefolder
+local raw_listfiles = listfiles
+local raw_delfile = delfile
+local raw_setclipboard = setclipboard
+local raw_request = (syn and syn.request) or request or http_request or (http and http.request)
+local raw_httpget = game.HttpGet
+
+local writefile = raw_writefile or function() end
+local readfile = raw_readfile or function() return "" end
+local isfile = raw_isfile or function() return false end
+local isfolder = raw_isfolder or function() return false end
+local makefolder = raw_makefolder or function() end
+local listfiles = raw_listfiles or function() return {} end
+local delfile = raw_delfile or function() end
+local setclipboard = raw_setclipboard or function() end
+
+local HasFileSystem = type(raw_writefile) == "function"
+	and type(raw_readfile) == "function"
+	and type(raw_isfile) == "function"
+	and type(raw_isfolder) == "function"
+	and type(raw_makefolder) == "function"
+
+local HasRequest = type(raw_request) == "function"
+
+----------------------------------------------------------------------------------------------------
+-- Utility
+----------------------------------------------------------------------------------------------------
+
+local tk = tick or os.clock
+local V2 = Vector2.new
+local C3 = Color3.new
+local RGB = Color3.fromRGB
+local HSV = Color3.fromHSV
+local UD2 = UDim2.new
+local UD = UDim.new
+
+local clamp = math.clamp
+local floor = math.floor
+local ceil = math.ceil
+local abs = math.abs
+local min = math.min
+local max = math.max
+local pi = math.pi
+local exp = math.exp
+local sqrt = math.sqrt
+local random = math.random
+
+local tinsert = table.insert
+local tremove = table.remove
+local tclone = table.clone or function(t) local n = {} for k,v in pairs(t) do n[k]=v end return n end
+local lower = string.lower
+local find = string.find
+local format = string.format
+
+local ZV2 = Vector2.new(0, 0)
+
+local GuiInset = Vector2.new(0, 0)
+pcall(function()
+	GuiInset = gs:GetGuiInset()
+end)
+
+local _secureNamePool = "abcdefghijklmnopqrstuvwxyz0123456789"
+local function RandomName(len)
+	len = len or 12
+	local out = {}
+	for i = 1, len do
+		local idx = random(1, #_secureNamePool)
+		out[i] = _secureNamePool:sub(idx, idx)
+	end
+	return table.concat(out)
+end
+
+local function SafeDestroy(x)
+	if x then pcall(function() x:Destroy() end) end
+end
+
+local function Connect(sig, fn)
+	local c = sig:Connect(fn)
+	tinsert(FrontierLib._Connections, c)
+	return c
+end
+
+local function DisconnectAll()
+	for i = #FrontierLib._Connections, 1, -1 do
+		local c = FrontierLib._Connections[i]
+		if c then pcall(function() c:Disconnect() end) end
+		FrontierLib._Connections[i] = nil
+	end
+end
+
+local function GetGuiParent()
+	local parent
+	pcall(function()
+		if typeof(gethui) == "function" then parent = gethui() end
+	end)
+	if parent then return parent end
+	pcall(function() parent = game:GetService("CoreGui") end)
+	if parent then return parent end
+	return lp:WaitForChild("PlayerGui")
+end
+
+local GuiParent = GetGuiParent()
+
+local function Mk(className, props)
+	local ok, inst = pcall(Instance.new, className)
+	if not ok or not inst then return nil end
+	local parent = props and props.Parent
+	if FrontierLib.SecureMode then
+		pcall(function() inst.Name = RandomName() end)
+	end
+	if props then
+		for k, v in pairs(props) do
+			if k ~= "Parent" then pcall(function() inst[k] = v end) end
+		end
+	end
+	if parent then pcall(function() inst.Parent = parent end) end
+	return inst
+end
+
+local TwCache = setmetatable({}, {__mode = "kv"})
+
+local function Tw(inst, props, dur, style, dir)
+	if not inst then return nil end
+	dur = dur or 0.16
+	style = style or Enum.EasingStyle.Quad
+	dir = dir or Enum.EasingDirection.Out
+	local old = TwCache[inst]
+	if old then pcall(function() old:Cancel() end) end
+	local ok, tween = pcall(function()
+		return ts:Create(inst, TweenInfo.new(dur, style, dir), props)
+	end)
+	if not ok or not tween then return nil end
+	TwCache[inst] = tween
+	tween:Play()
+	tween.Completed:Once(function()
+		if TwCache[inst] == tween then TwCache[inst] = nil end
+	end)
+	return tween
+end
+
+local function Byte(n)
+	return clamp(floor((n or 0) * 255 + 0.5), 0, 255)
+end
+
+local function ColorToHex(color)
+	return format("#%02X%02X%02X", Byte(color.R), Byte(color.G), Byte(color.B))
+end
+
+local function HexToColor(hex)
+	hex = tostring(hex or ""):gsub("#", "")
+	if #hex == 3 then
+		hex = hex:sub(1,1)..hex:sub(1,1)..hex:sub(2,2)..hex:sub(2,2)..hex:sub(3,3)..hex:sub(3,3)
+	end
+	if not hex:match("^%x%x%x%x%x%x$") then return nil end
+	return RGB(tonumber(hex:sub(1,2), 16), tonumber(hex:sub(3,4), 16), tonumber(hex:sub(5,6), 16))
+end
+
+local function TextWidth(text, font, size)
+	local ok, result = pcall(function()
+		return txts:GetTextSize(tostring(text), size, font, Vector2.new(10000, 10000))
+	end)
+	if ok and result then return result.X end
+	return #tostring(text) * size * 0.5
+end
+
+local function TextHeight(text, font, size, maxW)
+	local ok, result = pcall(function()
+		return txts:GetTextSize(tostring(text), size, font, Vector2.new(maxW or 300, 10000))
+	end)
+	if ok and result then return result.Y end
+	return size * 1.5
+end
+
+local function InputToName(input)
+	if input.UserInputType == Enum.UserInputType.Keyboard then
+		return input.KeyCode.Name
+	end
+	local inputName = input.UserInputType.Name
+	if inputName:find("MouseButton") then return inputName end
+	return "None"
+end
+
+local function NameToKeyCode(name)
+	if typeof(name) == "EnumItem" then return name end
+	local ok, item = pcall(function() return Enum.KeyCode[tostring(name)] end)
+	return ok and item or nil
+end
+
+local function InputMatches(input, keyName)
+	return InputToName(input) == tostring(keyName)
+end
+
+local function IsMouseInside(gui, input)
+	if not gui then return false end
+	local p = input.Position
+	local ap = gui.AbsolutePosition
+	local as = gui.AbsoluteSize
+	return p.X >= ap.X and p.X <= ap.X + as.X and p.Y >= ap.Y and p.Y <= ap.Y + as.Y
+end
+
+local function AbsPosAdjusted(gui)
+	if not gui then return Vector2.new(0, 0) end
+	return gui.AbsolutePosition + GuiInset
+end
+
+local function SanitizeFileName(name)
+	name = tostring(name or "Default")
+	name = name:gsub("[/\\:%*%?\"<>|]", "_"):gsub("^%s+", ""):gsub("%s+$", "")
+	if name == "" then name = "Default" end
+	return name
+end
+
+local function AddCorner(inst, radius)
+	return Mk("UICorner", { Parent = inst, CornerRadius = UD(0, radius or 3) })
+end
+
+local function AddStroke(inst, colorKey, transparency, thickness)
+	local stroke = Mk("UIStroke", {
+		Parent = inst,
+		Color = FrontierLib.Theme[colorKey or "Border"],
+		Transparency = transparency or 0,
+		Thickness = thickness or 1,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	})
+	if stroke then FrontierLib:_RegisterTheme(stroke, "Color", colorKey or "Border") end
+	return stroke
+end
+
+local function AddPadding(inst, left, right, top, bottom)
+	return Mk("UIPadding", {
+		Parent = inst,
+		PaddingLeft = UD(0, left or 0),
+		PaddingRight = UD(0, right or left or 0),
+		PaddingTop = UD(0, top or 0),
+		PaddingBottom = UD(0, bottom or top or 0),
+	})
+end
+
+local function AddList(inst, padding, dir)
+	return Mk("UIListLayout", {
+		Parent = inst,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UD(0, padding or 6),
+		FillDirection = dir or Enum.FillDirection.Vertical,
+	})
+end
+
+local function AddHover(btn, normalKey, hoverKey)
+	if not btn then return end
+	Connect(btn.MouseEnter, function()
+		Tw(btn, {BackgroundColor3 = FrontierLib.Theme[hoverKey or "Hover"]}, 0.14)
+	end)
+	Connect(btn.MouseLeave, function()
+		Tw(btn, {BackgroundColor3 = FrontierLib.Theme[normalKey or "PanelDark"]}, 0.14)
+	end)
+end
+
+local function AddShadow(inst, depth)
+	depth = depth or 6
+	local shadow = Mk("ImageLabel", {
+		Parent = inst,
+		Name = "Shadow",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UD2(0.5, 0, 0.5, depth / 2),
+		Size = UD2(1, depth * 3, 1, depth * 3),
+		BackgroundTransparency = 1,
+		Image = "rbxassetid://6014261993",
+		ImageColor3 = RGB(0, 0, 0),
+		ImageTransparency = 0.5,
+		ScaleType = Enum.ScaleType.Slice,
+		SliceCenter = Rect.new(49, 49, 450, 450),
+		ZIndex = Z.Shadow,
+	})
+	return shadow
+end
+
+local function Ripple(btn, clickPos)
+	if not btn then return end
+	local abs_pos = btn.AbsolutePosition
+	local abs_size = btn.AbsoluteSize
+	local rx = (clickPos and (clickPos.X - abs_pos.X)) or (abs_size.X / 2)
+	local ry = (clickPos and (clickPos.Y - abs_pos.Y)) or (abs_size.Y / 2)
+	local diameter = max(abs_size.X, abs_size.Y) * 2.2
+
+	local circle = Mk("Frame", {
+		Parent = btn,
+		Position = UD2(0, rx - 2, 0, ry - 2),
+		Size = UD2(0, 4, 0, 4),
+		BackgroundColor3 = C3(1, 1, 1),
+		BackgroundTransparency = 0.7,
+		BorderSizePixel = 0,
+		ZIndex = btn.ZIndex + 1,
+	})
+	AddCorner(circle, 9999)
+
+	Tw(circle, {
+		Position = UD2(0, rx - diameter / 2, 0, ry - diameter / 2),
+		Size = UD2(0, diameter, 0, diameter),
+		BackgroundTransparency = 1,
+	}, 0.42, Enum.EasingStyle.Quad)
+
+	task.delay(0.44, function() SafeDestroy(circle) end)
+end
+
+----------------------------------------------------------------------------------------------------
+-- Signal System (lightweight pub/sub)
+----------------------------------------------------------------------------------------------------
+
+local Signal = {}
+Signal.__index = Signal
+
+function Signal.new()
+	return setmetatable({ _listeners = {} }, Signal)
+end
+
+function Signal:Connect(fn)
+	local id = #self._listeners + 1
+	self._listeners[id] = fn
+	return {
+		Disconnect = function()
+			self._listeners[id] = nil
+		end,
+	}
+end
+
+function Signal:Fire(...)
+	for _, fn in pairs(self._listeners) do
+		task.spawn(fn, ...)
+	end
+end
+
+FrontierLib._Signals = {
+	OnThemeChanged = Signal.new(),
+	OnFlagChanged = Signal.new(),
+	OnTabChanged = Signal.new(),
+	OnConfigLoaded = Signal.new(),
+	OnConfigSaved = Signal.new(),
+	OnNotify = Signal.new(),
+	OnLog = Signal.new(),
+}
+
+----------------------------------------------------------------------------------------------------
+-- Spring Animation System
+----------------------------------------------------------------------------------------------------
+
+local Spring = {}
+Spring.__index = Spring
+
+function Spring.new(initial, stiffness, damping, mass)
+	return setmetatable({
+		Position = initial or 0,
+		Velocity = 0,
+		Target = initial or 0,
+		Stiffness = stiffness or 180,
+		Damping = damping or 16,
+		Mass = mass or 1,
+	}, Spring)
+end
+
+function Spring:Update(dt)
+	local displacement = self.Position - self.Target
+	local springForce = -self.Stiffness * displacement
+	local dampForce = -self.Damping * self.Velocity
+	local accel = (springForce + dampForce) / self.Mass
+	self.Velocity = self.Velocity + accel * dt
+	self.Position = self.Position + self.Velocity * dt
+	return self.Position
+end
+
+function Spring:SetTarget(t)
+	self.Target = t
+end
+
+function Spring:SetPosition(p)
+	self.Position = p
+	self.Velocity = 0
+end
+
+function Spring:IsSettled(threshold)
+	threshold = threshold or 0.01
+	return abs(self.Position - self.Target) < threshold and abs(self.Velocity) < threshold
+end
+
+local Spring2D = {}
+Spring2D.__index = Spring2D
+
+function Spring2D.new(x, y, stiffness, damping, mass)
+	return setmetatable({
+		X = Spring.new(x or 0, stiffness, damping, mass),
+		Y = Spring.new(y or 0, stiffness, damping, mass),
+	}, Spring2D)
+end
+
+function Spring2D:Update(dt)
+	return self.X:Update(dt), self.Y:Update(dt)
+end
+
+function Spring2D:SetTarget(x, y)
+	self.X:SetTarget(x)
+	self.Y:SetTarget(y)
+end
+
+function Spring2D:SetPosition(x, y)
+	self.X:SetPosition(x)
+	self.Y:SetPosition(y)
+end
+
+function Spring2D:IsSettled(threshold)
+	return self.X:IsSettled(threshold) and self.Y:IsSettled(threshold)
+end
+
+----------------------------------------------------------------------------------------------------
+-- Theme Engine (Indexed Registry)
+----------------------------------------------------------------------------------------------------
+
+function FrontierLib:_RegisterTheme(inst, prop, key)
+	if not inst or not prop or not key then return end
+	if not self._ThemeIndex[key] then
+		self._ThemeIndex[key] = {}
+	end
+	tinsert(self._ThemeIndex[key], { Inst = inst, Prop = prop })
+	pcall(function() inst[prop] = self.Theme[key] end)
+end
+
+function FrontierLib:SetThemeKey(key, value)
+	if not self.Theme[key] or typeof(value) ~= "Color3" then return end
+	self.Theme[key] = value
+
+	local bucket = self._ThemeIndex[key]
+	if not bucket then return end
+
+	for i = #bucket, 1, -1 do
+		local item = bucket[i]
+		if not item or not item.Inst or not item.Inst.Parent then
+			tremove(bucket, i)
+		else
+			pcall(function() item.Inst[item.Prop] = value end)
+		end
+	end
+
+	self._Signals.OnThemeChanged:Fire(key, value)
+end
+
+function FrontierLib:SetTheme(theme)
+	for k, v in pairs(theme or {}) do
+		if self.Theme[k] and typeof(v) == "Color3" then
+			self:SetThemeKey(k, v)
+		end
+	end
+end
+
+function FrontierLib:ApplyPreset(presetName)
+	local preset = self.ThemePresets[presetName]
+	if preset then
+		self:SetTheme(preset)
+	end
+end
+
+function FrontierLib:ExportTheme()
+	local data = {}
+	for k, v in pairs(self.Theme) do
+		if typeof(v) == "Color3" then data[k] = ColorToHex(v) end
+	end
+	return hs:JSONEncode(data)
+end
+
+function FrontierLib:ImportTheme(jsonStr)
+	local ok, data = pcall(function() return hs:JSONDecode(jsonStr) end)
+	if not ok or type(data) ~= "table" then return false end
+	for k, hex in pairs(data) do
+		local c = HexToColor(hex)
+		if c and self.Theme[k] then self:SetThemeKey(k, c) end
+	end
+	return true
+end
+
+----------------------------------------------------------------------------------------------------
+-- Frame Dispatcher (batched RenderStepped)
+----------------------------------------------------------------------------------------------------
+
+local _dispatcherConnected = false
+local _dispatcherConnection = nil
+
+local function RegisterFrameCallback(id, fn)
+	FrontierLib._FrameCallbacks[id] = fn
+	if not _dispatcherConnected then
+		_dispatcherConnected = true
+		_dispatcherConnection = rs.RenderStepped:Connect(function(dt)
+			if not FrontierLib._Alive then return end
+			for _, callback in pairs(FrontierLib._FrameCallbacks) do
+				task.spawn(callback, dt)
+			end
+		end)
+		tinsert(FrontierLib._Connections, _dispatcherConnection)
+	end
+end
+
+local function UnregisterFrameCallback(id)
+	FrontierLib._FrameCallbacks[id] = nil
+end
+
+----------------------------------------------------------------------------------------------------
+-- Notification System
+----------------------------------------------------------------------------------------------------
+
+local oldNotif = GuiParent:FindFirstChild("Frontier_Notifications")
+if oldNotif then oldNotif:Destroy() end
+
+local notifGui = Mk("ScreenGui", {
+	Parent = GuiParent,
+	Name = FrontierLib.SecureMode and RandomName() or "Frontier_Notifications",
+	ResetOnSpawn = false,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	IgnoreGuiInset = true,
+})
+tinsert(FrontierLib._Guis, notifGui)
+
+local NfStyle = {
+	info    = { color = RGB(150, 180, 255), icon = "i"  },
+	success = { color = RGB(90, 255, 140),  icon = "✓" },
+	warning = { color = RGB(255, 210, 90),  icon = "!"  },
+	error   = { color = RGB(255, 80, 80),   icon = "✗" },
+	orbit   = { color = RGB(190, 120, 255), icon = "⟳" },
+	custom  = { color = RGB(200, 200, 200), icon = "•"  },
+}
+
+local notifList = {}
+local notifPosition = "TopRight"
+
+function FrontierLib:SetNotificationPosition(pos)
+	notifPosition = pos or "TopRight"
+end
+
+function FrontierLib:Notify(cfg)
+	if not notifGui or not notifGui.Parent then return end
+
+	if type(cfg) == "string" then
+		cfg = { Title = cfg }
+	end
+
+	local title = cfg.Title or "Notification"
+	local content = cfg.Content or ""
+	local duration = cfg.Duration or 4
+	local notifType = cfg.Type or "info"
+	local actions = cfg.Actions or {}
+	local style = NfStyle[notifType] or NfStyle.info
+
+	if cfg.Color then
+		style = { color = cfg.Color, icon = cfg.Icon or style.icon }
+	end
+
+	local hasContent = content ~= ""
+	local hasActions = #actions > 0
+	local frameH = 44
+	if hasContent then frameH = frameH + 18 end
+	if hasActions then frameH = frameH + 28 end
+
+	local frameW = 300
+
+	local frame = Mk("Frame", {
+		Parent = notifGui,
+		Size = UD2(0, frameW, 0, frameH),
+		Position = UD2(1, frameW + 10, 0, -60),
+		BackgroundColor3 = FrontierLib.Theme.PanelDark,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		ZIndex = Z.Notification,
+	})
+	AddCorner(frame, 5)
+	local stroke = AddStroke(frame, "Border", 1, 1)
+
+	local accent = Mk("Frame", {
+		Parent = frame,
+		Size = UD2(0, 3, 1, 0),
+		BackgroundColor3 = style.color,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = Z.NotificationInner,
+	})
+
+	local icon = Mk("TextLabel", {
+		Parent = frame,
+		Size = UD2(0, 32, 0, 28),
+		Position = UD2(0, 5, 0, 4),
+		BackgroundTransparency = 1,
+		Text = style.icon,
+		Font = Enum.Font.Code,
+		TextSize = 16,
+		TextColor3 = style.color,
+		TextTransparency = 1,
+		ZIndex = Z.NotificationInner,
+	})
+
+	local titleLbl = Mk("TextLabel", {
+		Parent = frame,
+		Position = UD2(0, 36, 0, 4),
+		Size = UD2(1, -44, 0, 18),
+		BackgroundTransparency = 1,
+		Text = tostring(title),
+		Font = Enum.Font.SourceSansSemibold,
+		TextSize = 14,
+		TextColor3 = FrontierLib.Theme.Text,
+		TextTransparency = 1,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		ZIndex = Z.NotificationInner,
+	})
+	FrontierLib:_RegisterTheme(titleLbl, "TextColor3", "Text")
+
+	local contentLbl = nil
+	if hasContent then
+		contentLbl = Mk("TextLabel", {
+			Parent = frame,
+			Position = UD2(0, 36, 0, 22),
+			Size = UD2(1, -44, 0, 16),
+			BackgroundTransparency = 1,
+			Text = tostring(content),
+			Font = Enum.Font.SourceSans,
+			TextSize = 13,
+			TextColor3 = FrontierLib.Theme.SubText,
+			TextTransparency = 1,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			ZIndex = Z.NotificationInner,
+		})
+		FrontierLib:_RegisterTheme(contentLbl, "TextColor3", "SubText")
+	end
+
+	local actionBtns = {}
+	if hasActions then
+		local actionY = frameH - 28
+		local btnX = 36
+		for _, act in ipairs(actions) do
+			local actBtn = Mk("TextButton", {
+				Parent = frame,
+				Position = UD2(0, btnX, 0, actionY),
+				Size = UD2(0, 60, 0, 22),
+				BackgroundColor3 = style.color,
+				BackgroundTransparency = 0.85,
+				BorderSizePixel = 0,
+				Text = tostring(act.Text or "Action"),
+				Font = Enum.Font.SourceSansSemibold,
+				TextSize = 12,
+				TextColor3 = style.color,
+				TextTransparency = 1,
+				AutoButtonColor = false,
+				ZIndex = Z.NotificationInner + 1,
+			})
+			AddCorner(actBtn, 3)
+			tinsert(actionBtns, actBtn)
+
+			Connect(actBtn.MouseButton1Click, function()
+				if act.Callback then pcall(act.Callback) end
+			end)
+
+			btnX = btnX + 66
+		end
+	end
+
+	local prog = Mk("Frame", {
+		Parent = frame,
+		Size = UD2(1, 0, 0, 2),
+		Position = UD2(0, 0, 1, -2),
+		BackgroundColor3 = style.color,
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = Z.NotificationInner + 2,
+	})
+
+	-- click to dismiss
+	local dismissBtn = Mk("TextButton", {
+		Parent = frame,
+		Size = UD2(0, 20, 0, 20),
+		Position = UD2(1, -22, 0, 4),
+		BackgroundTransparency = 1,
+		Text = "×",
+		Font = Enum.Font.SourceSans,
+		TextSize = 16,
+		TextColor3 = FrontierLib.Theme.SubText,
+		TextTransparency = 1,
+		AutoButtonColor = false,
+		ZIndex = Z.NotificationInner + 2,
+	})
+
+	local n = {
+		frame = frame,
+		stroke = stroke,
+		accent = accent,
+		icon = icon,
+		title = titleLbl,
+		content = contentLbl,
+		actions = actionBtns,
+		prog = prog,
+		dismiss = dismissBtn,
+		born = tk(),
+		life = duration,
+		out = false,
+		dismissed = false,
+	}
+
+	Connect(dismissBtn.MouseButton1Click, function()
+		n.dismissed = true
+	end)
+
+	tinsert(notifList, n)
+
+	-- history
+	tinsert(FrontierLib._NotifHistory, {
+		Title = title,
+		Content = content,
+		Type = notifType,
+		Time = os.date("%H:%M:%S"),
+	})
+	if #FrontierLib._NotifHistory > 50 then
+		tremove(FrontierLib._NotifHistory, 1)
+	end
+
+	-- fade in
+	Tw(frame, {BackgroundTransparency = 0.04}, 0.24)
+	Tw(stroke, {Transparency = 0.15}, 0.24)
+	Tw(accent, {BackgroundTransparency = 0}, 0.24)
+	Tw(icon, {TextTransparency = 0}, 0.24)
+	Tw(titleLbl, {TextTransparency = 0}, 0.24)
+	Tw(dismissBtn, {TextTransparency = 0.4}, 0.24)
+	Tw(prog, {BackgroundTransparency = 0.15}, 0.24)
+	if contentLbl then Tw(contentLbl, {TextTransparency = 0}, 0.24) end
+	for _, ab in ipairs(actionBtns) do Tw(ab, {TextTransparency = 0}, 0.24) end
+
+	FrontierLib._Signals.OnNotify:Fire(cfg)
+end
+
+local function FadeOutNotif(n)
+	if n.out then return end
+	n.out = true
+	Tw(n.frame, {BackgroundTransparency = 1}, 0.22)
+	Tw(n.stroke, {Transparency = 1}, 0.22)
+	Tw(n.accent, {BackgroundTransparency = 1}, 0.22)
+	Tw(n.icon, {TextTransparency = 1}, 0.22)
+	Tw(n.title, {TextTransparency = 1}, 0.22)
+	Tw(n.dismiss, {TextTransparency = 1}, 0.22)
+	Tw(n.prog, {BackgroundTransparency = 1}, 0.22)
+	if n.content then Tw(n.content, {TextTransparency = 1}, 0.22) end
+	for _, ab in ipairs(n.actions or {}) do Tw(ab, {TextTransparency = 1}, 0.22) end
+	task.delay(0.24, function() SafeDestroy(n.frame) end)
+end
+
+RegisterFrameCallback("Notifications", function(dt)
+	if not notifGui or not notifGui.Parent then return end
+	if #notifList == 0 then return end
+
+	local now = tk()
+	local dead = {}
+	local gap = 8
+	local vpSize = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or V2(1920, 1080)
+
+	for i, n in ipairs(notifList) do
+		if not n.frame or not n.frame.Parent then
+			tinsert(dead, i)
+			continue
+		end
+
+		local age = now - n.born
+
+		if (age >= n.life or n.dismissed) and not n.out then
+			FadeOutNotif(n)
+			tinsert(dead, i)
+			continue
+		end
+
+		if not n.out then
+			local pct = clamp(1 - (age / n.life), 0, 1)
+			n.prog.Size = UD2(pct, 0, 0, 2)
+		end
+
+		local targetY = 34 + (i - 1) * (n.frame.AbsoluteSize.Y + gap)
+		local targetX
+
+		if notifPosition == "TopLeft" then
+			targetX = 14
+		elseif notifPosition == "BottomRight" then
+			targetX = vpSize.X - n.frame.AbsoluteSize.X - 14
+			targetY = vpSize.Y - 34 - i * (n.frame.AbsoluteSize.Y + gap)
+		elseif notifPosition == "BottomLeft" then
+			targetX = 14
+			targetY = vpSize.Y - 34 - i * (n.frame.AbsoluteSize.Y + gap)
+		else
+			targetX = vpSize.X - n.frame.AbsoluteSize.X - 14
+		end
+
+		local curr = n.frame.Position
+		n.frame.Position = UD2(0, curr.X.Offset + (targetX - curr.X.Offset) * min(dt * 14, 1), 0, curr.Y.Offset + (targetY - curr.Y.Offset) * min(dt * 14, 1))
+	end
+
+	for i = #dead, 1, -1 do
+		tremove(notifList, dead[i])
+	end
+end)
+
+----------------------------------------------------------------------------------------------------
+-- Dialog / Prompt System
+----------------------------------------------------------------------------------------------------
+
+function FrontierLib:Prompt(cfg)
+	cfg = cfg or {}
+	local title = cfg.Title or "Confirm"
+	local content = cfg.Content or ""
+	local buttons = cfg.Buttons or {{Text = "OK"}}
+	local autoDismiss = cfg.AutoDismiss
+
+	local sg = notifGui or GuiParent:FindFirstChildOfClass("ScreenGui")
+	if not sg then return end
+
+	local overlay = Mk("Frame", {
+		Parent = sg,
+		Size = UD2(1, 0, 1, 0),
+		BackgroundColor3 = RGB(0, 0, 0),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ZIndex = Z.Dialog - 1,
+	})
+	Tw(overlay, {BackgroundTransparency = 0.5}, 0.25)
+
+	local contentH = TextHeight(content, Enum.Font.SourceSans, 14, 280) + 4
+	local totalH = 50 + contentH + 42
+
+	local dialog = Mk("Frame", {
+		Parent = sg,
+		Size = UD2(0, 320, 0, 0),
+		Position = UD2(0.5, -160, 0.5, 0),
+		BackgroundColor3 = self.Theme.Bg,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		ZIndex = Z.Dialog,
+	})
+	self:_RegisterTheme(dialog, "BackgroundColor3", "Bg")
+	AddCorner(dialog, 5)
+	AddStroke(dialog, "Accent", 0.3, 1)
+
+	Tw(dialog, {
+		Size = UD2(0, 320, 0, totalH),
+		Position = UD2(0.5, -160, 0.5, -totalH / 2),
+	}, 0.3, Enum.EasingStyle.Quart)
+
+	local titleLbl = Mk("TextLabel", {
+		Parent = dialog,
+		Position = UD2(0, 16, 0, 12),
+		Size = UD2(1, -32, 0, 22),
+		BackgroundTransparency = 1,
+		Text = title,
+		Font = Enum.Font.GothamBold,
+		TextSize = 16,
+		TextColor3 = self.Theme.Accent,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = Z.DialogInner,
+	})
+	self:_RegisterTheme(titleLbl, "TextColor3", "Accent")
+
+	local contentLbl = Mk("TextLabel", {
+		Parent = dialog,
+		Position = UD2(0, 16, 0, 40),
+		Size = UD2(1, -32, 0, contentH),
+		BackgroundTransparency = 1,
+		Text = content,
+		Font = Enum.Font.SourceSans,
+		TextSize = 14,
+		TextColor3 = self.Theme.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextYAlignment = Enum.TextYAlignment.Top,
+		TextWrapped = true,
+		ZIndex = Z.DialogInner,
+	})
+	self:_RegisterTheme(contentLbl, "TextColor3", "Text")
+
+	local function dismiss()
+		Tw(overlay, {BackgroundTransparency = 1}, 0.2)
+		Tw(dialog, {
+			Size = UD2(0, 320, 0, 0),
+			Position = UD2(0.5, -160, 0.5, 0),
+		}, 0.25, Enum.EasingStyle.Quart)
+		task.delay(0.26, function()
+			SafeDestroy(overlay)
+			SafeDestroy(dialog)
+		end)
+	end
+
+	local btnX = 16
+	local btnY = 40 + contentH + 10
+	for _, bCfg in ipairs(buttons) do
+		local btn = Mk("TextButton", {
+			Parent = dialog,
+			Position = UD2(0, btnX, 0, btnY),
+			Size = UD2(0, 80, 0, 28),
+			BackgroundColor3 = self.Theme.PanelLight,
+			BorderSizePixel = 0,
+			Text = bCfg.Text or "OK",
+			Font = Enum.Font.SourceSansSemibold,
+			TextSize = 13,
+			TextColor3 = self.Theme.Text,
+			AutoButtonColor = false,
+			ZIndex = Z.DialogInner + 1,
+		})
+		self:_RegisterTheme(btn, "BackgroundColor3", "PanelLight")
+		self:_RegisterTheme(btn, "TextColor3", "Text")
+		AddCorner(btn, 4)
+		AddHover(btn, "PanelLight", "Hover")
+
+		Connect(btn.MouseButton1Click, function()
+			if bCfg.Callback then pcall(bCfg.Callback) end
+			dismiss()
+		end)
+		btnX = btnX + 88
+	end
+
+	if autoDismiss then
+		task.delay(autoDismiss, dismiss)
+	end
+end
+
+----------------------------------------------------------------------------------------------------
+-- Console / Log Viewer
+----------------------------------------------------------------------------------------------------
+
+local _LogBuffer = {}
+local _LogMaxSize = 256
+local _ConsoleHooked = false
+
+local LOG_SEVERITY = {
+	info  = { color = RGB(150, 180, 255), tag = "INFO" },
+	warn  = { color = RGB(255, 210, 90),  tag = "WARN" },
+	error = { color = RGB(255, 80, 80),   tag = "ERR " },
+	print = { color = RGB(210, 210, 210), tag = "LOG " },
+	debug = { color = RGB(140, 200, 140), tag = "DBG " },
+}
+
+function FrontierLib:Log(severity, ...)
+	severity = LOG_SEVERITY[severity] and severity or "print"
+	local parts = {}
+	for i = 1, select("#", ...) do
+		parts[i] = tostring(select(i, ...))
+	end
+	local message = table.concat(parts, " ")
+	local entry = {
+		severity = severity,
+		message = message,
+		timestamp = os.date("%H:%M:%S"),
+		tick = tk(),
+	}
+	tinsert(_LogBuffer, entry)
+	while #_LogBuffer > _LogMaxSize do
+		tremove(_LogBuffer, 1)
+	end
+	self._Signals.OnLog:Fire(entry)
+end
+
+function FrontierLib:ClearLogs()
+	table.clear(_LogBuffer)
+	self._Signals.OnLog:Fire({
+		severity = "info",
+		message = "__CLEAR__",
+		timestamp = os.date("%H:%M:%S"),
+		tick = tk(),
+	})
+end
+
+function FrontierLib:GetLogs()
+	return _LogBuffer
+end
+
+function FrontierLib:SetLogBufferSize(n)
+	_LogMaxSize = max(n or 256, 16)
+	while #_LogBuffer > _LogMaxSize do
+		tremove(_LogBuffer, 1)
+	end
+end
+
+local _origPrint = print
+local _origWarn = warn
+
+function FrontierLib:HookConsole()
+	if _ConsoleHooked then return end
+	_ConsoleHooked = true
+
+	print = function(...)
+		_origPrint(...)
+		FrontierLib:Log("print", ...)
+	end
+
+	warn = function(...)
+		_origWarn(...)
+		FrontierLib:Log("warn", ...)
+	end
+end
+
+function FrontierLib:UnhookConsole()
+	if not _ConsoleHooked then return end
+	_ConsoleHooked = false
+	print = _origPrint
+	warn = _origWarn
+end
+
+----------------------------------------------------------------------------------------------------
+-- Window
+----------------------------------------------------------------------------------------------------
+
+function FrontierLib:CreateWindow(cfg)
+	cfg = cfg or {}
+
+	local titleText = cfg.Title or "frontierism UI"
+	local winW = cfg.Width or 700
+	local winH = cfg.Height or 500
+	local minW = cfg.MinWidth or 560
+	local minH = cfg.MinHeight or 360
+
+	if cfg.Accent then self.Theme.Accent = cfg.Accent end
+	if cfg.ConfigFolder then self.ConfigFolder = cfg.ConfigFolder end
+	if cfg.Theme and self.ThemePresets[cfg.Theme] then self:ApplyPreset(cfg.Theme) end
+	if cfg.SecureMode then self.SecureMode = true end
+
+	local old = GuiParent:FindFirstChild("Frontierism_UI")
+	if old then old:Destroy() end
+
+	local sg = Mk("ScreenGui", {
+		Parent = GuiParent,
+		Name = self.SecureMode and RandomName() or "Frontierism_UI",
+		ResetOnSpawn = false,
+		IgnoreGuiInset = true,
+		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	})
+	tinsert(self._Guis, sg)
+
+	local WindowObj = {
+		Tabs = {},
+		ActiveTab = nil,
+		Elements = {},
+		Sections = {},
+		Open = true,
+		Minimized = false,
+		_Root = nil,
+		_Gui = sg,
+		_AutoSave = cfg.AutoSave == true,
+		_AutoSaveInterval = cfg.AutoSaveInterval or 30,
+		_LastAutoSave = tk(),
+		_Required = {
+			Credits = false,
+			Settings = false,
+			UIKeybinds = false,
+		},
+	}
+
+	tinsert(self._Windows, WindowObj)
+
+	------------------------------------------------------------------------------------------------
+	-- Tooltip
+	------------------------------------------------------------------------------------------------
+
+	local ttFrame = Mk("Frame", {
+		Parent = sg,
+		Size = UD2(0, 0, 0, 22),
+		BackgroundColor3 = RGB(20, 20, 22),
+		BackgroundTransparency = 0.06,
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = Z.Tooltip,
+	})
+	AddCorner(ttFrame, 4)
+	AddStroke(ttFrame, "Border", 0.1, 1)
+
+	local ttTitle = Mk("TextLabel", {
+		Parent = ttFrame,
+		Position = UD2(0, 8, 0, 3),
+		Size = UD2(1, -16, 0, 16),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.SourceSansSemibold,
+		TextSize = 13,
+		TextColor3 = self.Theme.Text,
+		Text = "",
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = Z.Tooltip + 1,
+	})
+	self:_RegisterTheme(ttTitle, "TextColor3", "Text")
+
+	local ttDesc = Mk("TextLabel", {
+		Parent = ttFrame,
+		Position = UD2(0, 8, 0, 18),
+		Size = UD2(1, -16, 0, 14),
+		BackgroundTransparency = 1,
+		Font = Enum.Font.SourceSans,
+		TextSize = 12,
+		TextColor3 = self.Theme.SubText,
+		Text = "",
+		TextXAlignment = Enum.TextXAlignment.Left,
+		Visible = false,
+		ZIndex = Z.Tooltip + 1,
+	})
+	self:_RegisterTheme(ttDesc, "TextColor3", "SubText")
+
+	local ttTarget = nil
+	local ttShowTime = 0
+	local ttDelay = 0.2
+
+	local ttSpring = Spring2D.new(0, 0, 200, 20, 1)
+	local ttVisible = false
+
+	RegisterFrameCallback("Tooltip", function(dt)
+		if not ttFrame or not ttFrame.Parent then return end
+		if ttFrame.Visible then
+			local mp = uis:GetMouseLocation()
+			ttSpring:SetTarget(mp.X + 14, mp.Y + 14)
+			local sx, sy = ttSpring:Update(dt)
+			ttFrame.Position = UD2(0, sx, 0, sy)
+		end
+	end)
+
+	local function ShowTooltip(text, desc)
+		if not text or text == "" then return end
+		ttTitle.Text = tostring(text)
+		local hasDesc = desc and desc ~= ""
+		ttDesc.Visible = hasDesc
+		if hasDesc then ttDesc.Text = tostring(desc) end
+
+		local w = TextWidth(text, Enum.Font.SourceSansSemibold, 13) + 20
+		local h = 24
+		if hasDesc then
+			local dw = TextWidth(desc, Enum.Font.SourceSans, 12) + 20
+			w = max(w, dw)
+			h = 40
+		end
+		ttFrame.Size = UD2(0, w, 0, h)
+
+		local mp = uis:GetMouseLocation()
+		ttSpring:SetPosition(mp.X + 14, mp.Y + 14)
+
+		ttFrame.Visible = true
+		ttVisible = true
+	end
+
+	local function HideTooltip()
+		ttFrame.Visible = false
+		ttVisible = false
+	end
+
+	local function AddTooltip(inst, text, desc)
+		if not inst or not text or text == "" then return end
+		local hoverStart = 0
+		local showing = false
+
+		Connect(inst.MouseEnter, function()
+			hoverStart = tk()
+			showing = false
+			task.delay(ttDelay, function()
+				if tk() - hoverStart >= ttDelay - 0.01 and not showing then
+					showing = true
+					ShowTooltip(text, desc)
+				end
+			end)
+		end)
+		Connect(inst.MouseLeave, function()
+			hoverStart = tk() + 999
+			showing = false
+			HideTooltip()
+		end)
+	end
+
+	------------------------------------------------------------------------------------------------
+	-- Intro / Root
+	------------------------------------------------------------------------------------------------
+
+	local blur = nil
+	if cfg.Blur ~= false then
+		blur = Mk("BlurEffect", { Parent = lighting, Name = "Frontier_Blur", Size = 0 })
+		if blur then Tw(blur, {Size = 14}, 0.5) end
+	end
+
+	local root = Mk("Frame", {
+		Parent = sg,
+		Size = UD2(0, winW, 0, winH),
+		Position = UD2(0.5, -winW / 2, 0.5, -winH / 2),
+		BackgroundColor3 = self.Theme.Bg,
+		BorderSizePixel = 0,
+		ClipsDescendants = true,
+		Visible = false,
+		ZIndex = Z.Root,
+	})
+	WindowObj._Root = root
+	self:_RegisterTheme(root, "BackgroundColor3", "Bg")
+	AddCorner(root, 4)
+	AddStroke(root, "Border", 0, 1)
+	AddShadow(root, 8)
+
+	local bgImage = Mk("ImageLabel", {
+		Parent = root,
+		Size = UD2(1, 0, 1, 0),
+		BackgroundTransparency = 1,
+		ImageTransparency = 1,
+		ScaleType = Enum.ScaleType.Crop,
+		ZIndex = Z.Root,
+	})
+
+	local function ShowRoot()
+		WindowObj.Open = true
+		root.Visible = true
+		root.Size = UD2(0, winW, 0, 0)
+		root.Position = UD2(0.5, -winW / 2, 0.5, 0)
+		Tw(root, {
+			Size = UD2(0, winW, 0, winH),
+			Position = UD2(0.5, -winW / 2, 0.5, -winH / 2)
+		}, 0.38, Enum.EasingStyle.Quart)
+	end
+
+	local function HideRoot()
+		WindowObj.Open = false
+		Tw(root, {
+			Size = UD2(0, winW, 0, 0),
+			Position = UD2(root.Position.X.Scale, root.Position.X.Offset, root.Position.Y.Scale, root.Position.Y.Offset + root.AbsoluteSize.Y / 2)
+		}, 0.32, Enum.EasingStyle.Quart)
+		task.delay(0.32, function()
+			if root and root.Parent and not WindowObj.Open then
+				root.Visible = false
+				root.Size = UD2(0, winW, 0, winH)
+			end
+		end)
+	end
+
+	-- Intro Animation
+	task.spawn(function()
+		if cfg.SkipIntro then
+			root.Visible = true
+			if blur then SafeDestroy(blur) end
+			return
+		end
+
+		local w, h = 320, 100
+		local intro = Mk("Frame", {
+			Parent = sg,
+			Size = UD2(0, w, 0, 0),
+			Position = UD2(0.5, -w / 2, 0.5, 0),
+			BackgroundColor3 = self.Theme.Bg,
+			BorderSizePixel = 0,
+			ClipsDescendants = true,
+			ZIndex = Z.Intro,
+		})
+		self:_RegisterTheme(intro, "BackgroundColor3", "Bg")
+		AddCorner(intro, 5)
+		AddStroke(intro, "Border", 0, 1)
+
+		local accentLine = Mk("Frame", {
+			Parent = intro,
+			Size = UD2(0, 0, 0, 2),
+			Position = UD2(0, 0, 0, 0),
+			BackgroundColor3 = self.Theme.Accent,
+			BorderSizePixel = 0,
+			ZIndex = Z.IntroInner,
+		})
+		self:_RegisterTheme(accentLine, "BackgroundColor3", "Accent")
+
+		local introTitle = Mk("TextLabel", {
+			Parent = intro,
+			Position = UD2(0, 16, 0, 18),
+			Size = UD2(1, -32, 0, 22),
+			BackgroundTransparency = 1,
+			Text = titleText,
+			Font = Enum.Font.GothamBold,
+			TextSize = 17,
+			TextColor3 = self.Theme.Text,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			ZIndex = Z.IntroInner,
+		})
+		self:_RegisterTheme(introTitle, "TextColor3", "Text")
+
+		local introVer = Mk("TextLabel", {
+			Parent = intro,
+			Position = UD2(1, -60, 0, 18),
+			Size = UD2(0, 44, 0, 22),
+			BackgroundTransparency = 1,
+			Text = "v" .. self.Version,
+			Font = Enum.Font.SourceSans,
+			TextSize = 13,
+			TextColor3 = self.Theme.SubText,
+			TextXAlignment = Enum.TextXAlignment.Right,
+			ZIndex = Z.IntroInner,
+		})
+		self:_RegisterTheme(introVer, "TextColor3", "SubText")
+
+		local statusLbl = Mk("TextLabel", {
+			Parent = intro,
+			Position = UD2(0, 16, 0, 48),
+			Size = UD2(1, -32, 0, 14),
+			BackgroundTransparency = 1,
+			Text = "initializing...",
+			Font = Enum.Font.SourceSans,
+			TextSize = 12,
+			TextColor3 = self.Theme.SubText,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			ZIndex = Z.IntroInner,
+		})
+		self:_RegisterTheme(statusLbl, "TextColor3", "SubText")
+
+		local barBg = Mk("Frame", {
+			Parent = intro,
+			Position = UD2(0, 16, 0, 74),
+			Size = UD2(1, -32, 0, 4),
+			BackgroundColor3 = self.Theme.PanelDark,
+			BorderSizePixel = 0,
+			ZIndex = Z.IntroInner,
+		})
+		self:_RegisterTheme(barBg, "BackgroundColor3", "PanelDark")
+		AddCorner(barBg, 2)
+
+		local bar = Mk("Frame", {
+			Parent = barBg,
+			Size = UD2(0, 0, 1, 0),
+			BackgroundColor3 = self.Theme.Accent,
+			BorderSizePixel = 0,
+			ZIndex = Z.IntroInner + 1,
+		})
+		self:_RegisterTheme(bar, "BackgroundColor3", "Accent")
+		AddCorner(bar, 2)
+
+		-- open intro
+		Tw(intro, {
+			Size = UD2(0, w, 0, h),
+			Position = UD2(0.5, -w / 2, 0.5, -h / 2)
+		}, 0.4, Enum.EasingStyle.Quart)
+		Tw(accentLine, {Size = UD2(1, 0, 0, 2)}, 0.5, Enum.EasingStyle.Sine)
+
+		task.wait(0.5)
+
+		local steps = {
+			{"loading theme engine...", 0.18, 0.2},
+			{"registering components...", 0.38, 0.22},
+			{"building spring system...", 0.56, 0.18},
+			{"mounting interface...", 0.78, 0.22},
+			{"validating environment...", 0.92, 0.16},
+			{"ready.", 1, 0.14},
+		}
+
+		for _, step in ipairs(steps) do
+			if not intro.Parent then return end
+			statusLbl.Text = step[1]
+			Tw(bar, {Size = UD2(step[2], 0, 1, 0)}, step[3], Enum.EasingStyle.Sine)
+			task.wait(step[3])
+		end
+
+		task.wait(0.15)
+
+		-- close intro
+		Tw(intro, {
+			Size = UD2(0, w, 0, 0),
+			Position = UD2(0.5, -w / 2, 0.5, 0)
+		}, 0.35, Enum.EasingStyle.Quart)
+
+		task.wait(0.36)
+		SafeDestroy(intro)
+
+		if root and root.Parent then
+			ShowRoot()
+		end
+
+		task.wait(0.35)
+		if blur and blur.Parent then
+			Tw(blur, {Size = 0}, 0.42)
+			task.delay(0.44, function() SafeDestroy(blur) end)
+		end
+	end)
+
+	------------------------------------------------------------------------------------------------
+	-- Main Layout
+	------------------------------------------------------------------------------------------------
+
+	-- Topbar
+	local topbar = Mk("Frame", {
+		Parent = root,
+		Size = UD2(1, 0, 0, 32),
+		BackgroundColor3 = self.Theme.Topbar,
+		BorderSizePixel = 0,
+		ZIndex = Z.Topbar,
+	})
+	self:_RegisterTheme(topbar, "BackgroundColor3", "Topbar")
+
+	-- gradient accent on topbar
+	local topGrad = Mk("Frame", {
+		Parent = topbar,
+		Size = UD2(1, 0, 0, 1),
+		Position = UD2(0, 0, 1, 0),
+		BackgroundColor3 = self.Theme.Accent,
+		BackgroundTransparency = 0.6,
+		BorderSizePixel = 0,
+		ZIndex = Z.Topbar + 1,
+	})
+	self:_RegisterTheme(topGrad, "BackgroundColor3", "Accent")
+
+	local topLine = Mk("Frame", {
+		Parent = topbar,
+		Size = UD2(1, 0, 0, 1),
+		Position = UD2(0, 0, 1, -1),
+		BackgroundColor3 = self.Theme.Border,
+		BorderSizePixel = 0,
+		ZIndex = Z.Topbar + 1,
+	})
+	self:_RegisterTheme(topLine, "BackgroundColor3", "Border")
+
+	local titleLabel = Mk("TextLabel", {
+		Parent = topbar,
+		Position = UD2(0, 12, 0, 0),
+		Size = UD2(1, -100, 1, 0),
+		BackgroundTransparency = 1,
+		Text = titleText,
+		Font = Enum.Font.SourceSansSemibold,
+		TextSize = 15,
+		TextColor3 = self.Theme.Text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = Z.TopbarBtn,
+	})
+	self:_RegisterTheme(titleLabel, "TextColor3", "Text")
+
+	-- version tag
+	local verTag = Mk("TextLabel", {
+		Parent = topbar,
+		Position = UD2(0, 12 + TextWidth(titleText, Enum.Font.SourceSansSemibold, 15) + 8, 0, 0),
+		Size = UD2(0, 40, 1, 0),
+		BackgroundTransparency = 1,
+		Text = "v" .. self.Version,
+		Font = Enum.Font.SourceSans,
+		TextSize = 11,
+		TextColor3 = self.Theme.SubText,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = Z.TopbarBtn,
+	})
+	self:_RegisterTheme(verTag, "TextColor3", "SubText")
+
+	-- min/close buttons
+	local minBtn = Mk("TextButton", {
+		Parent = topbar,
+		Position = UD2(1, -64, 0, 0),
+		Size = UD2(0, 32, 1, 0),
+		BackgroundTransparency = 1,
+		Text = "−",
+		Font = Enum.Font.SourceSans,
+		TextSize = 20,
+		TextColor3 = self.Theme.SubText,
+		AutoButtonColor = false,
+		ZIndex = Z.TopbarBtn,
+	})
+	self:_RegisterTheme(minBtn, "TextColor3", "SubText")
+
+	local closeBtn = Mk("TextButton", {
+		Parent = topbar,
+		Position = UD2(1, -32, 0, 0),
+		Size = UD2(0, 32, 1, 0),
+		BackgroundTransparency = 1,
+		Text = "×",
+		Font = Enum.Font.SourceSans,
+		TextSize = 20,
+		TextColor3 = self.Theme.SubText,
+		AutoButtonColor = false,
+		ZIndex = Z.TopbarBtn,
+	})
+	self:_RegisterTheme(closeBtn, "TextColor3", "SubText")
+
+	Connect(minBtn.MouseEnter, function() minBtn.TextColor3 = self.Theme.Text end)
+	Connect(minBtn.MouseLeave, function() minBtn.TextColor3 = self.Theme.SubText end)
+	Connect(closeBtn.MouseEnter, function() closeBtn.TextColor3 = self.Theme.Error end)
+	Connect(closeBtn.MouseLeave, function() closeBtn.TextColor3 = self.Theme.SubText end)
+
+	Connect(minBtn.MouseButton1Click, function()
+		WindowObj.Minimized = not WindowObj.Minimized
+		if WindowObj.Minimized then
+			Tw(root, {Size = UD2(0, winW, 0, 32)}, 0.28, Enum.EasingStyle.Quart)
+		else
+			Tw(root, {Size = UD2(0, winW, 0, winH)}, 0.28, Enum.EasingStyle.Quart)
+		end
+	end)
+
+	Connect(closeBtn.MouseButton1Click, function()
+		HideRoot()
+		self:Notify({
+			Title = "UI Hidden",
+			Content = "Press " .. self.ToggleKey.Name .. " to reopen.",
+			Duration = 3,
+			Type = "info",
+		})
+	end)
+
+	-- Drag
+	local dragArea = Mk("TextButton", {
+		Parent = topbar,
+		Size = UD2(1, -70, 1, 0),
+		BackgroundTransparency = 1,
+		Text = "",
+		AutoButtonColor = false,
+		ZIndex = Z.TopbarDrag,
+	})
+
+	local dragSpring = Spring2D.new(root.Position.X.Offset, root.Position.Y.Offset, 200, 18, 1)
+	local drag = { active = false, start = ZV2, startPos = nil }
+
+	Connect(dragArea.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			drag.active = true
+			drag.start = V2(input.Position.X, input.Position.Y)
+			drag.startPos = root.Position
+			dragSpring:SetPosition(root.Position.X.Offset, root.Position.Y.Offset)
+		end
+	end)
+
+	Connect(uis.InputChanged, function(input)
+		if drag.active and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = V2(input.Position.X, input.Position.Y) - drag.start
+			local tx = drag.startPos.X.Offset + delta.X
+			local ty = drag.startPos.Y.Offset + delta.Y
+			dragSpring:SetTarget(tx, ty)
+		end
+	end)
+
+	Connect(uis.InputEnded, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			drag.active = false
+		end
+	end)
+
+	RegisterFrameCallback("Drag", function(dt)
+		if drag.active then
+			local sx, sy = dragSpring:Update(dt)
+			root.Position = UD2(0, sx, 0, sy)
+		end
+	end)
+
+	-- Sidebar
+	local sidebar = Mk("Frame", {
+		Parent = root,
+		Position = UD2(0, 0, 0, 32),
+		Size = UD2(0, 155, 1, -32),
+		BackgroundColor3 = self.Theme.Sidebar,
+		BackgroundTransparency = 0.03,
+		BorderSizePixel = 0,
+		ZIndex = Z.Sidebar,
+	})
+	self:_RegisterTheme(sidebar, "BackgroundColor3", "Sidebar")
+
+	local sideLine = Mk("Frame", {
+		Parent = sidebar,
+		Size = UD2(0, 1, 1, 0),
+		Position = UD2(1, 0, 0, 0),
+		BackgroundColor3 = self.Theme.Border,
+		BorderSizePixel = 0,
+		ZIndex = Z.Sidebar + 1,
+	})
+	self:_RegisterTheme(sideLine, "BackgroundColor3", "Border")
+
+	-- Search
+	local searchBox = Mk("TextBox", {
+		Parent = sidebar,
+		Size = UD2(1, -14, 0, 26),
+		Position = UD2(0, 7, 0, 7),
+		BackgroundColor3 = self.Theme.PanelDark,
+		BorderSizePixel = 0,
+		TextColor3 = self.Theme.Text,
+		PlaceholderText = "  Search...",
+		PlaceholderColor3 = self.Theme.SubText,
+		Text = "",
+		Font = Enum.Font.SourceSans,
+		TextSize = 13,
+		ClearTextOnFocus = false,
+		ZIndex = Z.SidebarEl,
+	})
+	self:_RegisterTheme(searchBox, "BackgroundColor3", "PanelDark")
+	self:_RegisterTheme(searchBox, "TextColor3", "Text")
+	self:_RegisterTheme(searchBox, "PlaceholderColor3", "SubText")
+	AddCorner(searchBox, 4)
+	AddStroke(searchBox, "Border", 0.25, 1)
+
+	-- Tab list
+	local tabList = Mk("ScrollingFrame", {
+		Parent = sidebar,
+		Position = UD2(0, 0, 0, 40),
+		Size = UD2(1, 0, 1, -40),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 2,
+		ScrollBarImageColor3 = self.Theme.Accent,
+		CanvasSize = UD2(0, 0, 0, 0),
+		ZIndex = Z.SidebarEl,
+	})
+	self:_RegisterTheme(tabList, "ScrollBarImageColor3", "Accent")
+	local tabLayout = AddList(tabList, 1)
+
+	Connect(tabLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+		tabList.CanvasSize = UD2(0, 0, 0, tabLayout.AbsoluteContentSize.Y + 8)
+	end)
+
+	-- Content area
+	local content = Mk("Frame", {
+		Parent = root,
+		Position = UD2(0, 156, 0, 32),
+		Size = UD2(1, -156, 1, -32),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		ZIndex = Z.Content,
+	})
+
+	-- Resize grip
+	local resizeGrip = Mk("TextButton", {
+		Parent = root,
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UD2(1, -3, 1, -3),
+		Size = UD2(0, 16, 0, 16),
+		BackgroundTransparency = 1,
+		Text = "◢",
+		Font = Enum.Font.SourceSans,
+		TextSize = 14,
+		TextColor3 = self.Theme.SubText,
+		AutoButtonColor = false,
+		ZIndex = Z.Content + 10,
+	})
+	self:_RegisterTheme(resizeGrip, "TextColor3", "SubText")
+
+	local resizing = { active = false, start = ZV2, size = ZV2 }
+
+	Connect(resizeGrip.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			resizing.active = true
+			resizing.start = V2(input.Position.X, input.Position.Y)
+			resizing.size = V2(winW, winH)
+		end
+	end)
+
+	Connect(uis.InputChanged, function(input)
+		if resizing.active and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = V2(input.Position.X, input.Position.Y) - resizing.start
+			winW = max(minW, resizing.size.X + delta.X)
+			winH = max(minH, resizing.size.Y + delta.Y)
+			root.Size = UD2(0, winW, 0, WindowObj.Minimized and 32 or winH)
+		end
+	end)
+
+	Connect(uis.InputEnded, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then resizing.active = false end
+	end)
+
+	-- Window methods
+	function WindowObj:SetBackground(imgId, transparency, color)
+		if imgId then
+			local id = tostring(imgId)
+			bgImage.Image = id:find("rbxassetid://") and id or ("rbxassetid://" .. id)
+			bgImage.ImageColor3 = color or C3(1, 1, 1)
+			Tw(bgImage, {ImageTransparency = transparency or 0.65}, 0.35)
+		else
+			Tw(bgImage, {ImageTransparency = 1}, 0.35)
+		end
+	end
+
+	function WindowObj:SetToggleKey(key)
+		local item = NameToKeyCode(key)
+		if item then FrontierLib.ToggleKey = item end
+	end
+
+	function WindowObj:Show() ShowRoot() end
+	function WindowObj:Hide() HideRoot() end
+	function WindowObj:Toggle()
+		if root.Visible and WindowObj.Open then HideRoot() else ShowRoot() end
+	end
+	function WindowObj:Destroy() FrontierLib:Destroy() end
+
+	------------------------------------------------------------------------------------------------
+	-- Search Logic
+	------------------------------------------------------------------------------------------------
+
+	Connect(searchBox:GetPropertyChangedSignal("Text"), function()
+		local q = lower(searchBox.Text or "")
+		for _, el in ipairs(WindowObj.Elements) do
+			if el.Instance and el.Instance.Parent then
+				if q == "" then
+					el.Instance.Visible = true
+				else
+					el.Instance.Visible = find(lower(el.Name), q, 1, true) ~= nil
+				end
+			end
+		end
+		for _, section in ipairs(WindowObj.Sections) do
+			if section and section._UpdateSize then section:_UpdateSize() end
+		end
+	end)
+
+	------------------------------------------------------------------------------------------------
+	-- Dependency System
+	------------------------------------------------------------------------------------------------
+
+	local function CheckDependency(depCfg)
+		if type(depCfg) == "string" then
+			return FrontierLib.Flags[depCfg] == true
+		elseif type(depCfg) == "table" then
+			local flag = depCfg.Flag
+			local value = depCfg.Value
+			if value ~= nil then
+				return FrontierLib.Flags[flag] == value
+			else
+				return FrontierLib.Flags[flag] == true
+			end
+		end
+		return true
+	end
+
+	local function RegisterDependency(row, depCfg, section)
+		if not depCfg then return end
+		local flagName = type(depCfg) == "string" and depCfg or depCfg.Flag
+		if not self._DependencyMap[flagName] then
+			self._DependencyMap[flagName] = {}
+		end
+		tinsert(self._DependencyMap[flagName], {
+			Row = row,
+			Config = depCfg,
+			Section = section,
+		})
+		row.Visible = CheckDependency(depCfg)
+	end
+
+	self._Signals.OnFlagChanged:Connect(function(flag)
+		local deps = self._DependencyMap[flag]
+		if not deps then return end
+		for _, dep in ipairs(deps) do
+			local vis = CheckDependency(dep.Config)
+			if dep.Row then
+				dep.Row.Visible = vis
+			end
+			if dep.Section and dep.Section._UpdateSize then
+				dep.Section:_UpdateSize()
+			end
+		end
+	end)
+
+	------------------------------------------------------------------------------------------------
+	-- Component Factory
+	------------------------------------------------------------------------------------------------
+
+	local function RegisterElement(row, name)
+		tinsert(WindowObj.Elements, { Instance = row, Name = tostring(name or "") })
+	end
+
+	local function SetFlag(flag, value)
+		if flag then
+			FrontierLib.Flags[flag] = value
+			self._Signals.OnFlagChanged:Fire(flag, value)
+		end
+	end
+
+	local function FireCallback(cb, ...)
+		if cb then pcall(cb, ...) end
+	end
+
+	local function CreateSectionAPI(section)
+		local api = section
+
+		-- AddLabel
+		function api:AddLabel(text)
+			local lbl = Mk("TextLabel", {
+				Parent = section._Holder,
+				Size = UD2(1, 0, 0, 20),
+				BackgroundTransparency = 1,
+				Text = tostring(text or ""),
+				Font = Enum.Font.SourceSansSemibold,
+				TextSize = 14,
+				TextColor3 = FrontierLib.Theme.Accent,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = Z.Element,
+			})
+			FrontierLib:_RegisterTheme(lbl, "TextColor3", "Accent")
+			section:_UpdateSize()
+			local obj = {}
+			function obj:SetText(t) lbl.Text = tostring(t or "") end
+			return obj
+		end
+
+		-- AddDivider
+		function api:AddDivider(label)
+			local hasLabel = label and label ~= ""
+			local h = hasLabel and 22 or 10
+
+			local row = Mk("Frame", {
+				Parent = section._Holder,
+				Size = UD2(1, 0, 0, h),
+				BackgroundTransparency = 1,
+				ZIndex = Z.Element,
+			})
+
+			local line = Mk("Frame", {
+				Parent = row,
+				Size = UD2(hasLabel and 0.3 or 1, 0, 0, 1),
+				Position = UD2(0, 0, 0.5, 0),
+				BackgroundColor3 = FrontierLib.Theme.Border,
+				BorderSizePixel = 0,
+				ZIndex = Z.Element,
+			})
+			FrontierLib:_RegisterTheme(line, "BackgroundColor3", "Border")
+
+			if hasLabel then
+				local divLabel = Mk("TextLabel", {
+					Parent = row,
+					Position = UD2(0.3, 8, 0, 0),
+					Size = UD2(0.4, -16, 1, 0),
+					BackgroundTransparency = 1,
+					Text = tostring(label),
+					Font = Enum.Font.SourceSans,
+					TextSize = 12,
+					TextColor3 = FrontierLib.Theme.SubText,
+					ZIndex = Z.Element,
+				})
+				FrontierLib:_RegisterTheme(divLabel, "TextColor3", "SubText")
+
+				local line2 = Mk("Frame", {
+					Parent = row,
+					Size = UD2(0.3, 0, 0, 1),
+					Position = UD2(0.7, 0, 0.5, 0),
+					BackgroundColor3 = FrontierLib.Theme.Border,
+					BorderSizePixel = 0,
+					ZIndex = Z.Element,
+				})
+				FrontierLib:_RegisterTheme(line2, "BackgroundColor3", "Border")
+			end
+
+			section:_UpdateSize()
+			return row
+		end
+
+		-- AddParagraph
+		function api:AddParagraph(p)
+			p = p or {}
+			local title = p.Title or ""
+			local body = p.Content or ""
+
+			local bodyH = TextHeight(body, Enum.Font.SourceSans, 13, 280) + 4
+			local totalH = (title ~= "" and 22 or 0) + bodyH + 14
+
+			local row = Mk("Frame", {
+				Parent = section._Holder,
+				Size = UD2(1, 0, 0, totalH),
+				BackgroundColor3 = FrontierLib.Theme.PanelDark,
+				BorderSizePixel = 0,
+				ZIndex = Z.Element,
+			})
+			FrontierLib:_RegisterTheme(row, "BackgroundColor3", "PanelDark")
+			AddCorner(row, 4)
+			AddStroke(row, "Border", 0.3, 1)
+
+			local yOff = 6
+			if title ~= "" then
+				local tLbl = Mk("TextLabel", {
+					Parent = row,
+					Position = UD2(0, 10, 0, yOff),
+					Size = UD2(1, -20, 0, 18),
+					BackgroundTransparency = 1,
+					Text = title,
+					Font = Enum.Font.SourceSansSemibold,
+					TextSize = 14,
+					TextColor3 = FrontierLib.Theme.Accent,
+					TextXAlignment = Enum.TextXAlignment.Left,
+					ZIndex = Z.ElementInner,
+				})
+				FrontierLib:_RegisterTheme(tLbl, "TextColor3", "Accent")
+				yOff = yOff + 20
+			end
+
+			local bLbl = Mk("TextLabel", {
+				Parent = row,
+				Position = UD2(0, 10, 0, yOff),
+				Size = UD2(1, -20, 0, bodyH),
+				BackgroundTransparency = 1,
+				Text = body,
+				Font = Enum.Font.SourceSans,
+				TextSize = 13,
+				TextColor3 = FrontierLib.Theme.SubText,
+				TextWrapped = true,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextYAlignment = Enum.TextYAlignment.Top,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(bLbl, "TextColor3", "SubText")
+
+			RegisterElement(row, p.Title or "paragraph")
+			section:_UpdateSize()
+
+			local obj = {}
+			function obj:SetTitle(t) if title ~= "" then end end
+			function obj:SetContent(t) bLbl.Text = tostring(t or "") end
+			return obj
+		end
+
+		-- AddImage
+		function api:AddImage(p)
+			p = p or {}
+			local imgSize = p.Size or UD2(1, 0, 0, 100)
+			local row = Mk("ImageLabel", {
+				Parent = section._Holder,
+				Size = imgSize,
+				BackgroundTransparency = 1,
+				Image = p.Image or "",
+				ScaleType = p.ScaleType or Enum.ScaleType.Fit,
+				ZIndex = Z.Element,
+			})
+			AddCorner(row, 4)
+			section:_UpdateSize()
+			return row
+		end
+
+		-- AddProgressBar
+		function api:AddProgressBar(p)
+			p = p or {}
+			local row = Mk("Frame", {
+				Parent = section._Holder,
+				Size = UD2(1, 0, 0, 36),
+				BackgroundTransparency = 1,
+				ZIndex = Z.Element,
+			})
+
+			local label = Mk("TextLabel", {
+				Parent = row,
+				Size = UD2(1, -50, 0, 16),
+				BackgroundTransparency = 1,
+				Text = tostring(p.Text or "Progress"),
+				Font = Enum.Font.SourceSans,
+				TextSize = 14,
+				TextColor3 = FrontierLib.Theme.Text,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(label, "TextColor3", "Text")
+
+			local pctLabel = Mk("TextLabel", {
+				Parent = row,
+				Position = UD2(1, -48, 0, 0),
+				Size = UD2(0, 48, 0, 16),
+				BackgroundTransparency = 1,
+				Text = "0%",
+				Font = Enum.Font.SourceSans,
+				TextSize = 14,
+				TextColor3 = FrontierLib.Theme.Accent,
+				TextXAlignment = Enum.TextXAlignment.Right,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(pctLabel, "TextColor3", "Accent")
+
+			local track = Mk("Frame", {
+				Parent = row,
+				Position = UD2(0, 0, 0, 22),
+				Size = UD2(1, 0, 0, 8),
+				BackgroundColor3 = FrontierLib.Theme.PanelDark,
+				BorderSizePixel = 0,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(track, "BackgroundColor3", "PanelDark")
+			AddCorner(track, 4)
+
+			local fill = Mk("Frame", {
+				Parent = track,
+				Size = UD2(0, 0, 1, 0),
+				BackgroundColor3 = FrontierLib.Theme.Accent,
+				BorderSizePixel = 0,
+				ZIndex = Z.ElementInner + 1,
+			})
+			FrontierLib:_RegisterTheme(fill, "BackgroundColor3", "Accent")
+			AddCorner(fill, 4)
+
+			local value = p.Default or 0
+			SetFlag(p.Flag, value)
+
+			local obj = {}
+			function obj:Set(v)
+				v = clamp(tonumber(v) or 0, 0, 1)
+				value = v
+				SetFlag(p.Flag, value)
+				Tw(fill, {Size = UD2(v, 0, 1, 0)}, 0.2)
+				pctLabel.Text = floor(v * 100) .. "%"
+			end
+			function obj:Get() return value end
+
+			obj:Set(value)
+			RegisterElement(row, p.Text)
+			section:_UpdateSize()
+			return obj
+		end
+
+		-- AddCredits
+		function api:AddCredits()
+			WindowObj._Required.Credits = true
+			local row = Mk("Frame", {
+				Parent = section._Holder,
+				Size = UD2(1, 0, 0, 48),
+				BackgroundColor3 = FrontierLib.Theme.PanelDark,
+				BorderSizePixel = 0,
+				ZIndex = Z.Element,
+			})
+			FrontierLib:_RegisterTheme(row, "BackgroundColor3", "PanelDark")
+			AddCorner(row, 4)
+			AddStroke(row, "Border", 0.3, 1)
+
+			local txt = Mk("TextLabel", {
+				Parent = row,
+				Size = UD2(1, 0, 1, 0),
+				BackgroundTransparency = 1,
+				Text = "made w/ love by frontier",
+				Font = Enum.Font.GothamBold,
+				TextSize = 18,
+				TextColor3 = C3(1, 1, 1),
+				ZIndex = Z.ElementInner,
+			})
+
+			local grad = Mk("UIGradient", {
+				Parent = txt,
+				Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, RGB(0, 0, 0)),
+					ColorSequenceKeypoint.new(0.5, FrontierLib.Theme.Accent),
+					ColorSequenceKeypoint.new(1, RGB(0, 0, 0)),
+				}),
+				Offset = Vector2.new(-1, 0),
+			})
+
+			task.spawn(function()
+				while txt and txt.Parent and FrontierLib._Alive do
+					local tw = Tw(grad, {Offset = Vector2.new(1, 0)}, 2.2, Enum.EasingStyle.Linear)
+					if tw then tw.Completed:Wait() end
+					if grad and grad.Parent then grad.Offset = Vector2.new(-1, 0) end
+					task.wait(0.08)
+				end
+			end)
+
+			RegisterElement(row, "credits frontier")
+			section:_UpdateSize()
+			return row
+		end
+
+		-- AddButton
+		function api:AddButton(p)
+			p = p or {}
+			local row = Mk("Frame", {
+				Parent = section._Holder,
+				Size = UD2(1, 0, 0, 30),
+				BackgroundTransparency = 1,
+				ZIndex = Z.Element,
+			})
+
+			local btn = Mk("TextButton", {
+				Parent = row,
+				Size = UD2(1, 0, 1, 0),
+				BackgroundColor3 = FrontierLib.Theme.PanelDark,
+				BorderSizePixel = 0,
+				Text = tostring(p.Text or "Button"),
+				Font = Enum.Font.SourceSans,
+				TextSize = 14,
+				TextColor3 = FrontierLib.Theme.Text,
+				AutoButtonColor = false,
+				ClipsDescendants = true,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(btn, "BackgroundColor3", "PanelDark")
+			FrontierLib:_RegisterTheme(btn, "TextColor3", "Text")
+			AddCorner(btn, 4)
+			AddStroke(btn, "Border", 0.25, 1)
+			AddHover(btn, "PanelDark", "Hover")
+			AddTooltip(row, p.Tip, p.TipDesc)
+
+			Connect(btn.MouseButton1Click, function(x, y)
+				Ripple(btn, nil)
+				FireCallback(p.Callback)
+			end)
+
+			if p.DependsOn then RegisterDependency(row, p.DependsOn, section) end
+			RegisterElement(row, p.Text)
+			section:_UpdateSize()
+
+			local obj = {
+				Instance = row,
+				Button = btn,
+				Fire = function() FireCallback(p.Callback) end,
+			}
+
+			-- Sub-buttons
+			function obj:AddSubButton(sp)
+				sp = sp or {}
+				local sub = Mk("TextButton", {
+					Parent = row,
+					Size = UD2(0.5, -2, 0, 24),
+					Position = UD2(0.5, 2, 0, 3),
+					BackgroundColor3 = FrontierLib.Theme.Panel,
+					BorderSizePixel = 0,
+					Text = tostring(sp.Text or "Sub"),
+					Font = Enum.Font.SourceSans,
+					TextSize = 12,
+					TextColor3 = FrontierLib.Theme.SubText,
+					AutoButtonColor = false,
+					ClipsDescendants = true,
+					ZIndex = Z.ElementInner + 1,
+				})
+				FrontierLib:_RegisterTheme(sub, "BackgroundColor3", "Panel")
+				FrontierLib:_RegisterTheme(sub, "TextColor3", "SubText")
+				AddCorner(sub, 3)
+				AddHover(sub, "Panel", "Hover")
+
+				-- resize main button to make room
+				btn.Size = UD2(0.5, -2, 1, 0)
+
+				Connect(sub.MouseButton1Click, function()
+					Ripple(sub, nil)
+					FireCallback(sp.Callback)
+				end)
+
+				return sub
+			end
+
+			return obj
+		end
+
+		-- AddToggle (animated switch)
+		function api:AddToggle(p)
+			p = p or {}
+			local row = Mk("Frame", {
+				Parent = section._Holder,
+				Size = UD2(1, 0, 0, 28),
+				BackgroundTransparency = 1,
+				ZIndex = Z.Element,
+			})
+
+			-- switch track
+			local track = Mk("TextButton", {
+				Parent = row,
+				Size = UD2(0, 36, 0, 18),
+				Position = UD2(0, 0, 0.5, -9),
+				BackgroundColor3 = FrontierLib.Theme.PanelDark,
+				BorderSizePixel = 0,
+				Text = "",
+				AutoButtonColor = false,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(track, "BackgroundColor3", "PanelDark")
+			AddCorner(track, 9)
+			AddStroke(track, "Border", 0.2, 1)
+
+			-- switch knob
+			local knob = Mk("Frame", {
+				Parent = track,
+				Size = UD2(0, 14, 0, 14),
+				Position = UD2(0, 2, 0.5, -7),
+				BackgroundColor3 = FrontierLib.Theme.SubText,
+				BorderSizePixel = 0,
+				ZIndex = Z.ElementInner + 1,
+			})
+			AddCorner(knob, 7)
+
+			local label = Mk("TextLabel", {
+				Parent = row,
+				Position = UD2(0, 44, 0, 0),
+				Size = UD2(1, -44, 1, 0),
+				BackgroundTransparency = 1,
+				Text = tostring(p.Text or "Toggle"),
+				Font = Enum.Font.SourceSans,
+				TextSize = 14,
+				TextColor3 = FrontierLib.Theme.Text,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(label, "TextColor3", "Text")
+			AddTooltip(row, p.Tip, p.TipDesc)
+
+			local state = p.Default == true
+			SetFlag(p.Flag, state)
+
+			local obj = {}
+
+			local function update(noCallback)
+				SetFlag(p.Flag, state)
+				if state then
+					Tw(knob, {Position = UD2(0, 20, 0.5, -7), BackgroundColor3 = FrontierLib.Theme.Accent}, 0.18)
+					Tw(track, {BackgroundColor3 = FrontierLib.Theme.Accent}, 0.18)
+					track.BackgroundTransparency = 0.65
+				else
+					Tw(knob, {Position = UD2(0, 2, 0.5, -7), BackgroundColor3 = FrontierLib.Theme.SubText}, 0.18)
+					Tw(track, {BackgroundColor3 = FrontierLib.Theme.PanelDark}, 0.18)
+					track.BackgroundTransparency = 0
+				end
+				if not noCallback then FireCallback(p.Callback, state) end
+			end
+
+			Connect(track.MouseButton1Click, function()
+				state = not state
+				update(false)
+			end)
+			Connect(label.InputBegan, function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 then
+					state = not state
+					update(false)
+				end
+			end)
+
+			function obj:Set(v) state = v == true; update(false) end
+			function obj:Get() return state end
+			function obj:SetVisible(v) row.Visible = v == true; section:_UpdateSize() end
+
+			if p.Flag then FrontierLib.Pointers[p.Flag] = obj end
+			if p.DependsOn then RegisterDependency(row, p.DependsOn, section) end
+
+			update(true)
+			RegisterElement(row, p.Text)
+			section:_UpdateSize()
+			return obj
+		end
+
+		-- AddSlider
+		function api:AddSlider(p)
+			p = p or {}
+			local minVal = p.Min or 0
+			local maxVal = p.Max or 100
+			local decimals = p.Decimals or 0
+			local suffix = p.Suffix or ""
+			local value = p.Default
+			if value == nil then value = minVal end
+
+			local row = Mk("Frame", {
+				Parent = section._Holder,
+				Size = UD2(1, 0, 0, 44),
+				BackgroundTransparency = 1,
+				ZIndex = Z.Element,
+			})
+
+			local label = Mk("TextLabel", {
+				Parent = row,
+				Size = UD2(1, -65, 0, 17),
+				BackgroundTransparency = 1,
+				Text = tostring(p.Text or "Slider"),
+				Font = Enum.Font.SourceSans,
+				TextSize = 14,
+				TextColor3 = FrontierLib.Theme.Text,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(label, "TextColor3", "Text")
+
+			local valueBox = Mk("TextBox", {
+				Parent = row,
+				Position = UD2(1, -63, 0, 0),
+				Size = UD2(0, 63, 0, 17),
+				BackgroundTransparency = 1,
+				Text = "",
+				Font = Enum.Font.SourceSans,
+				TextSize = 14,
+				TextColor3 = FrontierLib.Theme.Accent,
+				TextXAlignment = Enum.TextXAlignment.Right,
+				ClearTextOnFocus = false,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(valueBox, "TextColor3", "Accent")
+
+			local trackFrame = Mk("TextButton", {
+				Parent = row,
+				Position = UD2(0, 0, 0, 24),
+				Size = UD2(1, 0, 0, 10),
+				BackgroundColor3 = FrontierLib.Theme.PanelDark,
+				BorderSizePixel = 0,
+				Text = "",
+				AutoButtonColor = false,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(trackFrame, "BackgroundColor3", "PanelDark")
+			AddCorner(trackFrame, 5)
+			AddStroke(trackFrame, "Border", 0.3, 1)
+
+			local fill = Mk("Frame", {
+				Parent = trackFrame,
+				Size = UD2(0, 0, 1, 0),
+				BackgroundColor3 = FrontierLib.Theme.Accent,
+				BackgroundTransparency = 0.15,
+				BorderSizePixel = 0,
+				ZIndex = Z.ElementInner + 1,
+			})
+			FrontierLib:_RegisterTheme(fill, "BackgroundColor3", "Accent")
+			AddCorner(fill, 5)
+
+			-- knob
+			local sliderKnob = Mk("Frame", {
+				Parent = trackFrame,
+				Size = UD2(0, 14, 0, 14),
+				Position = UD2(0, -7, 0.5, -7),
+				BackgroundColor3 = FrontierLib.Theme.Accent,
+				BorderSizePixel = 0,
+				ZIndex = Z.ElementInner + 2,
+			})
+			FrontierLib:_RegisterTheme(sliderKnob, "BackgroundColor3", "Accent")
+			AddCorner(sliderKnob, 7)
+			AddStroke(sliderKnob, "Border", 0.1, 1)
+
+			local dragging = false
+			local obj = {}
+
+			local function round(v)
+				local mult = 10 ^ decimals
+				return floor(v * mult + 0.5) / mult
+			end
+
+			local function setVal(v, noCallback)
+				v = tonumber(v) or minVal
+				value = round(clamp(v, minVal, maxVal))
+				local pct = 0
+				if maxVal ~= minVal then pct = (value - minVal) / (maxVal - minVal) end
+				valueBox.Text = tostring(value) .. suffix
+				Tw(fill, {Size = UD2(pct, 0, 1, 0)}, 0.08)
+				sliderKnob.Position = UD2(pct, -7, 0.5, -7)
+				SetFlag(p.Flag, value)
+				if not noCallback then FireCallback(p.Callback, value) end
+			end
+
+			local function dragTo(input)
+				local pct = clamp((input.Position.X - trackFrame.AbsolutePosition.X) / max(trackFrame.AbsoluteSize.X, 1), 0, 1)
+				setVal(minVal + (maxVal - minVal) * pct, false)
+			end
+
+			Connect(trackFrame.InputBegan, function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 then
+					dragging = true
+					dragTo(input)
+				end
+			end)
+			Connect(uis.InputChanged, function(input)
+				if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then dragTo(input) end
+			end)
+			Connect(uis.InputEnded, function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+			end)
+			Connect(valueBox.FocusLost, function()
+				local n = tonumber(valueBox.Text:gsub(suffix, ""))
+				if n then setVal(n, false) else valueBox.Text = tostring(value) .. suffix end
+			end)
+
+			function obj:Set(v) setVal(v, false) end
+			function obj:Get() return value end
+			function obj:SetVisible(v) row.Visible = v == true; section:_UpdateSize() end
+
+			if p.Flag then FrontierLib.Pointers[p.Flag] = obj end
+			if p.DependsOn then RegisterDependency(row, p.DependsOn, section) end
+
+			AddTooltip(row, p.Tip, p.TipDesc)
+			setVal(value, true)
+			RegisterElement(row, p.Text)
+			section:_UpdateSize()
+			return obj
+		end
+
+		-- AddDropdown
+		function api:AddDropdown(p)
+			p = p or {}
+			local items = p.Items or {}
+			local isMulti = p.Multi == true
+
+			local state
+			if isMulti then
+				state = {}
+				if type(p.Default) == "table" then
+					for k, v in pairs(p.Default) do
+						if type(k) == "number" then state[v] = true else state[k] = v == true end
+					end
+				end
+			else
+				state = p.Default or items[1] or "None"
+			end
+
+			local row = Mk("Frame", {
+				Parent = section._Holder,
+				Size = UD2(1, 0, 0, 50),
+				BackgroundTransparency = 1,
+				ZIndex = Z.Element,
+			})
+
+			local label = Mk("TextLabel", {
+				Parent = row,
+				Size = UD2(1, 0, 0, 17),
+				BackgroundTransparency = 1,
+				Text = tostring(p.Text or "Dropdown"),
+				Font = Enum.Font.SourceSans,
+				TextSize = 14,
+				TextColor3 = FrontierLib.Theme.Text,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(label, "TextColor3", "Text")
+
+			local btn = Mk("TextButton", {
+				Parent = row,
+				Position = UD2(0, 0, 0, 22),
+				Size = UD2(1, 0, 0, 26),
+				BackgroundColor3 = FrontierLib.Theme.PanelDark,
+				BorderSizePixel = 0,
+				Text = "",
+				AutoButtonColor = false,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(btn, "BackgroundColor3", "PanelDark")
+			AddCorner(btn, 4)
+			AddStroke(btn, "Border", 0.25, 1)
+			AddHover(btn, "PanelDark", "Hover")
+
+			local valTxt = Mk("TextLabel", {
+				Parent = btn,
+				Position = UD2(0, 8, 0, 0),
+				Size = UD2(1, -30, 1, 0),
+				BackgroundTransparency = 1,
+				Text = "",
+				Font = Enum.Font.SourceSans,
+				TextSize = 13,
+				TextColor3 = FrontierLib.Theme.SubText,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				ZIndex = Z.ElementInner + 1,
+			})
+			FrontierLib:_RegisterTheme(valTxt, "TextColor3", "SubText")
+
+			local arrow = Mk("TextLabel", {
+				Parent = btn,
+				Position = UD2(1, -22, 0, 0),
+				Size = UD2(0, 18, 1, 0),
+				BackgroundTransparency = 1,
+				Text = "▼",
+				Font = Enum.Font.SourceSans,
+				TextSize = 11,
+				TextColor3 = FrontierLib.Theme.SubText,
+				ZIndex = Z.ElementInner + 1,
+			})
+			FrontierLib:_RegisterTheme(arrow, "TextColor3", "SubText")
+
+			local menuOpen = false
+			local menuFrame = nil
+			local obj = {}
+
+			local function updateDisplay(noCallback)
+				if isMulti then
+					local selected = {}
+					for _, item in ipairs(items) do
+						if state[item] then tinsert(selected, tostring(item)) end
+					end
+					valTxt.Text = #selected > 0 and table.concat(selected, ", ") or "None"
+					SetFlag(p.Flag, state)
+				else
+					valTxt.Text = tostring(state)
+					SetFlag(p.Flag, state)
+				end
+				if not noCallback then FireCallback(p.Callback, state) end
+			end
+
+			local function closeMenu()
+				if menuFrame then SafeDestroy(menuFrame); menuFrame = nil end
+				menuOpen = false
+				arrow.Text = "▼"
+			end
+
+			local function openMenu()
+				if menuOpen then closeMenu(); return end
+				menuOpen = true
+				arrow.Text = "▲"
+
+				local maxVisible = p.MaxVisible or 6
+				local itemH = 25
+				local searchH = isMulti and 30 or 0
+				local height = min(#items * itemH + 4 + searchH, maxVisible * itemH + 4 + searchH)
+				local ap = AbsPosAdjusted(btn)
+				local x = btn.AbsolutePosition.X
+				local y = btn.AbsolutePosition.Y + btn.AbsoluteSize.Y + 2
+
+				local vpH = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize.Y or 1080
+				if y + height > vpH then y = btn.AbsolutePosition.Y - height - 2 end
+
+				menuFrame = Mk("Frame", {
+					Parent = sg,
+					Size = UD2(0, btn.AbsoluteSize.X, 0, height),
+					Position = UD2(0, x, 0, y),
+					BackgroundColor3 = FrontierLib.Theme.PanelDark,
+					BorderSizePixel = 0,
+					ClipsDescendants = true,
+					ZIndex = Z.Dropdown,
+				})
+				FrontierLib:_RegisterTheme(menuFrame, "BackgroundColor3", "PanelDark")
+				AddCorner(menuFrame, 4)
+				AddStroke(menuFrame, "Border", 0, 1)
+
+				local filterText = ""
+				local itemContainer
+
+				if isMulti then
+					-- select all / deselect all row
+					local ctrlRow = Mk("Frame", {
+						Parent = menuFrame,
+						Size = UD2(1, 0, 0, 26),
+						BackgroundTransparency = 1,
+						ZIndex = Z.DropdownItem,
+					})
+					local selAll = Mk("TextButton", {
+						Parent = ctrlRow,
+						Size = UD2(0.5, -1, 1, 0),
+						BackgroundColor3 = FrontierLib.Theme.Panel,
+						BorderSizePixel = 0,
+						Text = "Select All",
+						Font = Enum.Font.SourceSans,
+						TextSize = 12,
+						TextColor3 = FrontierLib.Theme.Accent,
+						AutoButtonColor = false,
+						ZIndex = Z.DropdownItem + 1,
+					})
+					AddCorner(selAll, 3)
+					local deselAll = Mk("TextButton", {
+						Parent = ctrlRow,
+						Position = UD2(0.5, 1, 0, 0),
+						Size = UD2(0.5, -1, 1, 0),
+						BackgroundColor3 = FrontierLib.Theme.Panel,
+						BorderSizePixel = 0,
+						Text = "Deselect All",
+						Font = Enum.Font.SourceSans,
+						TextSize = 12,
+						TextColor3 = FrontierLib.Theme.SubText,
+						AutoButtonColor = false,
+						ZIndex = Z.DropdownItem + 1,
+					})
+					AddCorner(deselAll, 3)
+
+					Connect(selAll.MouseButton1Click, function()
+						for _, it in ipairs(items) do state[it] = true end
+						closeMenu()
+						updateDisplay(false)
+					end)
+					Connect(deselAll.MouseButton1Click, function()
+						for _, it in ipairs(items) do state[it] = nil end
+						closeMenu()
+						updateDisplay(false)
+					end)
+				end
+
+				-- scrolling item list
+				itemContainer = Mk("ScrollingFrame", {
+					Parent = menuFrame,
+					Size = UD2(1, 0, 1, isMulti and -28 or 0),
+					Position = UD2(0, 0, 0, isMulti and 28 or 0),
+					BackgroundTransparency = 1,
+					BorderSizePixel = 0,
+					ScrollBarThickness = 2,
+					ScrollBarImageColor3 = FrontierLib.Theme.Accent,
+					CanvasSize = UD2(0, 0, 0, 0),
+					ZIndex = Z.DropdownItem,
+				})
+				local iLayout = AddList(itemContainer, 0)
+				Connect(iLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+					if itemContainer then itemContainer.CanvasSize = UD2(0, 0, 0, iLayout.AbsoluteContentSize.Y) end
+				end)
+
+				for _, item in ipairs(items) do
+					local selected = isMulti and state[item] or state == item
+					local itBtn = Mk("TextButton", {
+						Parent = itemContainer,
+						Size = UD2(1, 0, 0, itemH),
+						BackgroundTransparency = 1,
+						BorderSizePixel = 0,
+						Text = "  " .. tostring(item),
+						Font = Enum.Font.SourceSans,
+						TextSize = 13,
+						TextColor3 = selected and FrontierLib.Theme.Accent or FrontierLib.Theme.Text,
+						TextXAlignment = Enum.TextXAlignment.Left,
+						AutoButtonColor = false,
+						ZIndex = Z.DropdownItem + 1,
+					})
+					AddHover(itBtn, "PanelDark", "Hover")
+
+					Connect(itBtn.MouseButton1Click, function()
+						if isMulti then
+							state[item] = not state[item]
+							itBtn.TextColor3 = state[item] and FrontierLib.Theme.Accent or FrontierLib.Theme.Text
+						else
+							state = item
+							closeMenu()
+						end
+						updateDisplay(false)
+					end)
+				end
+			end
+
+			Connect(btn.MouseButton1Click, openMenu)
+
+			Connect(uis.InputBegan, function(input)
+				if menuOpen and input.UserInputType == Enum.UserInputType.MouseButton1 then
+					if menuFrame and not IsMouseInside(menuFrame, input) and not IsMouseInside(btn, input) then
+						closeMenu()
+					end
+				end
+			end)
+
+			function obj:Set(v)
+				if isMulti then
+					state = {}
+					if type(v) == "table" then
+						for k, val in pairs(v) do
+							if type(k) == "number" then state[val] = true else state[k] = val == true end
+						end
+					end
+				else
+					state = v
+				end
+				updateDisplay(false)
+			end
+			function obj:Get() return state end
+			function obj:Refresh(newItems, preferred)
+				items = newItems or {}
+				if isMulti then
+					local valid = {}
+					for _, item in ipairs(items) do valid[item] = true end
+					for k in pairs(state) do if not valid[k] then state[k] = nil end end
+				else
+					local found = false
+					for _, item in ipairs(items) do if item == state then found = true; break end end
+					if preferred then state = preferred elseif not found then state = items[1] or "None" end
+				end
+				closeMenu()
+				updateDisplay(false)
+			end
+			function obj:SetVisible(v) row.Visible = v == true; section:_UpdateSize() end
+
+			if p.Flag then FrontierLib.Pointers[p.Flag] = obj end
+			if p.DependsOn then RegisterDependency(row, p.DependsOn, section) end
+
+			AddTooltip(row, p.Tip, p.TipDesc)
+			updateDisplay(true)
+			RegisterElement(row, p.Text)
+			section:_UpdateSize()
+			return obj
+		end
+
+		-- AddColorPicker
+		function api:AddColorPicker(p)
+			p = p or {}
+			local color = p.Default or C3(1, 1, 1)
+			local h, s, v = color:ToHSV()
+			local recentColors = {}
+
+			local row = Mk("Frame", {
+				Parent = section._Holder,
+				Size = UD2(1, 0, 0, 28),
+				BackgroundTransparency = 1,
+				ZIndex = Z.Element,
+			})
+
+			local label = Mk("TextLabel", {
+				Parent = row,
+				Size = UD2(1, -55, 1, 0),
+				BackgroundTransparency = 1,
+				Text = tostring(p.Text or "Color"),
+				Font = Enum.Font.SourceSans,
+				TextSize = 14,
+				TextColor3 = FrontierLib.Theme.Text,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(label, "TextColor3", "Text")
+
+			local cBtn = Mk("TextButton", {
+				Parent = row,
+				Position = UD2(1, -48, 0, 3),
+				Size = UD2(0, 48, 0, 22),
+				BackgroundColor3 = color,
+				BorderSizePixel = 0,
+				Text = "",
+				AutoButtonColor = false,
+				ZIndex = Z.ElementInner,
+			})
+			AddCorner(cBtn, 4)
+			AddStroke(cBtn, "Border", 0.15, 1)
+
+			local menuOpen = false
+			local popup = nil
+			local hexBox, svMarker, hueMarker, preview = nil, nil, nil, nil
+			local obj = {}
+
+			local function closePopup()
+				if popup then SafeDestroy(popup); popup = nil end
+				menuOpen = false
+			end
+
+			local function updateColor(c, noCallback)
+				if typeof(c) ~= "Color3" then return end
+				color = c
+				h, s, v = color:ToHSV()
+				cBtn.BackgroundColor3 = color
+				if preview then preview.BackgroundColor3 = color end
+				if hexBox and hexBox.Parent then hexBox.Text = ColorToHex(color) end
+				if svMarker and svMarker.Parent then svMarker.Position = UD2(s, -4, 1 - v, -4) end
+				if hueMarker and hueMarker.Parent then hueMarker.Position = UD2(0, -2, h, -3) end
+				SetFlag(p.Flag, ColorToHex(color))
+				if not noCallback then FireCallback(p.Callback, color) end
+			end
+
+			local presetColors = {
+				RGB(255,255,255), RGB(200,200,200), RGB(128,128,128), RGB(0,0,0),
+				RGB(255,0,0), RGB(255,128,0), RGB(255,255,0), RGB(128,255,0),
+				RGB(0,255,0), RGB(0,255,128), RGB(0,255,255), RGB(0,128,255),
+				RGB(0,0,255), RGB(128,0,255), RGB(255,0,255), RGB(255,0,128),
+			}
+
+			local function buildPopup()
+				closePopup()
+				menuOpen = true
+
+				local px = cBtn.AbsolutePosition.X - 200
+				local py = cBtn.AbsolutePosition.Y + 28
+				local popH = 234
+
+				popup = Mk("Frame", {
+					Parent = sg,
+					Size = UD2(0, 248, 0, popH),
+					Position = UD2(0, px, 0, py),
+					BackgroundColor3 = FrontierLib.Theme.PanelDark,
+					BorderSizePixel = 0,
+					ZIndex = Z.ColorPicker,
+				})
+				FrontierLib:_RegisterTheme(popup, "BackgroundColor3", "PanelDark")
+				AddCorner(popup, 5)
+				AddStroke(popup, "Border", 0, 1)
+
+				-- SV box
+				local sv = Mk("TextButton", {
+					Parent = popup,
+					Position = UD2(0, 10, 0, 10),
+					Size = UD2(0, 155, 0, 110),
+					BackgroundColor3 = HSV(h, 1, 1),
+					BorderSizePixel = 0,
+					Text = "",
+					AutoButtonColor = false,
+					ZIndex = Z.ColorPickerInner,
+				})
+				AddCorner(sv, 3)
+
+				Mk("Frame", {
+					Parent = sv,
+					Size = UD2(1, 0, 1, 0),
+					BackgroundColor3 = C3(1, 1, 1),
+					BorderSizePixel = 0,
+					ZIndex = Z.ColorPickerInner + 1,
+				})
+				Mk("UIGradient", {
+					Parent = sv:FindFirstChildOfClass("Frame"),
+					Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1)}),
+				})
+
+				local blackFrame = Mk("Frame", {
+					Parent = sv,
+					Size = UD2(1, 0, 1, 0),
+					BackgroundColor3 = C3(0, 0, 0),
+					BorderSizePixel = 0,
+					ZIndex = Z.ColorPickerInner + 2,
+				})
+				Mk("UIGradient", {
+					Parent = blackFrame,
+					Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(1, 0)}),
+					Rotation = 90,
+				})
+				AddCorner(blackFrame, 3)
+
+				svMarker = Mk("Frame", {
+					Parent = sv,
+					Size = UD2(0, 8, 0, 8),
+					Position = UD2(s, -4, 1 - v, -4),
+					BackgroundColor3 = C3(1, 1, 1),
+					BorderSizePixel = 0,
+					ZIndex = Z.ColorPickerInner + 4,
+				})
+				AddCorner(svMarker, 8)
+				AddStroke(svMarker, "Border", 0, 1)
+
+				-- hue bar
+				local hueBar = Mk("TextButton", {
+					Parent = popup,
+					Position = UD2(0, 175, 0, 10),
+					Size = UD2(0, 16, 0, 110),
+					BackgroundColor3 = C3(1, 1, 1),
+					BorderSizePixel = 0,
+					Text = "",
+					AutoButtonColor = false,
+					ZIndex = Z.ColorPickerInner,
+				})
+				AddCorner(hueBar, 3)
+				Mk("UIGradient", {
+					Parent = hueBar,
+					Rotation = 90,
+					Color = ColorSequence.new({
+						ColorSequenceKeypoint.new(0.000, RGB(255, 0, 0)),
+						ColorSequenceKeypoint.new(0.167, RGB(255, 255, 0)),
+						ColorSequenceKeypoint.new(0.333, RGB(0, 255, 0)),
+						ColorSequenceKeypoint.new(0.500, RGB(0, 255, 255)),
+						ColorSequenceKeypoint.new(0.667, RGB(0, 0, 255)),
+						ColorSequenceKeypoint.new(0.833, RGB(255, 0, 255)),
+						ColorSequenceKeypoint.new(1.000, RGB(255, 0, 0)),
+					}),
+				})
+
+				hueMarker = Mk("Frame", {
+					Parent = hueBar,
+					Size = UD2(1, 4, 0, 6),
+					Position = UD2(0, -2, h, -3),
+					BackgroundColor3 = C3(1, 1, 1),
+					BorderSizePixel = 0,
+					ZIndex = Z.ColorPickerInner + 4,
+				})
+				AddCorner(hueMarker, 2)
+				AddStroke(hueMarker, "Border", 0, 1)
+
+				-- preview
+				preview = Mk("Frame", {
+					Parent = popup,
+					Position = UD2(0, 200, 0, 10),
+					Size = UD2(0, 38, 0, 110),
+					BackgroundColor3 = color,
+					BorderSizePixel = 0,
+					ZIndex = Z.ColorPickerInner,
+				})
+				AddCorner(preview, 4)
+				AddStroke(preview, "Border", 0.15, 1)
+
+				-- preset row
+				local presetFrame = Mk("Frame", {
+					Parent = popup,
+					Position = UD2(0, 10, 0, 128),
+					Size = UD2(1, -20, 0, 28),
+					BackgroundTransparency = 1,
+					ZIndex = Z.ColorPickerInner,
+				})
+				local pLayout = Mk("UIGridLayout", {
+					Parent = presetFrame,
+					CellSize = UD2(0, 12, 0, 12),
+					CellPadding = UD2(0, 3, 0, 3),
+					SortOrder = Enum.SortOrder.LayoutOrder,
+				})
+				for _, pc in ipairs(presetColors) do
+					local pBtn = Mk("TextButton", {
+						Parent = presetFrame,
+						BackgroundColor3 = pc,
+						BorderSizePixel = 0,
+						Text = "",
+						AutoButtonColor = false,
+						ZIndex = Z.ColorPickerInner + 1,
+					})
+					AddCorner(pBtn, 2)
+					Connect(pBtn.MouseButton1Click, function()
+						updateColor(pc, false)
+						if sv and sv.Parent then sv.BackgroundColor3 = HSV(h, 1, 1) end
+					end)
+				end
+
+				-- hex input
+				hexBox = Mk("TextBox", {
+					Parent = popup,
+					Position = UD2(0, 10, 0, 164),
+					Size = UD2(0.5, -14, 0, 24),
+					BackgroundColor3 = FrontierLib.Theme.Bg,
+					BorderSizePixel = 0,
+					Text = ColorToHex(color),
+					Font = Enum.Font.Code,
+					TextSize = 13,
+					TextColor3 = FrontierLib.Theme.Text,
+					ClearTextOnFocus = false,
+					ZIndex = Z.ColorPickerInner,
+				})
+				FrontierLib:_RegisterTheme(hexBox, "BackgroundColor3", "Bg")
+				FrontierLib:_RegisterTheme(hexBox, "TextColor3", "Text")
+				AddCorner(hexBox, 3)
+				AddStroke(hexBox, "Border", 0.2, 1)
+
+				-- copy button
+				local copyBtn = Mk("TextButton", {
+					Parent = popup,
+					Position = UD2(0.5, 2, 0, 164),
+					Size = UD2(0.5, -12, 0, 24),
+					BackgroundColor3 = FrontierLib.Theme.Panel,
+					BorderSizePixel = 0,
+					Text = "Copy Hex",
+					Font = Enum.Font.SourceSans,
+					TextSize = 12,
+					TextColor3 = FrontierLib.Theme.SubText,
+					AutoButtonColor = false,
+					ZIndex = Z.ColorPickerInner,
+				})
+				FrontierLib:_RegisterTheme(copyBtn, "BackgroundColor3", "Panel")
+				AddCorner(copyBtn, 3)
+				Connect(copyBtn.MouseButton1Click, function()
+					pcall(setclipboard, ColorToHex(color))
+					FrontierLib:Notify({Title = "Copied", Content = ColorToHex(color), Duration = 2, Type = "success"})
+				end)
+
+				-- RGB fields
+				local rgbY = 196
+				local function mkRGBField(labelT, getter, setter)
+					local f = Mk("Frame", {
+						Parent = popup,
+						Size = UD2(0.33, -8, 0, 26),
+						BackgroundTransparency = 1,
+						ZIndex = Z.ColorPickerInner,
+					})
+					local fl = Mk("TextLabel", {
+						Parent = f,
+						Size = UD2(0, 14, 1, 0),
+						BackgroundTransparency = 1,
+						Text = labelT,
+						Font = Enum.Font.SourceSansSemibold,
+						TextSize = 12,
+						TextColor3 = FrontierLib.Theme.SubText,
+						ZIndex = Z.ColorPickerInner + 1,
+					})
+					local fb = Mk("TextBox", {
+						Parent = f,
+						Position = UD2(0, 16, 0, 0),
+						Size = UD2(1, -16, 1, 0),
+						BackgroundColor3 = FrontierLib.Theme.Bg,
+						BorderSizePixel = 0,
+						Text = tostring(getter()),
+						Font = Enum.Font.Code,
+						TextSize = 12,
+						TextColor3 = FrontierLib.Theme.Text,
+						ClearTextOnFocus = false,
+						ZIndex = Z.ColorPickerInner + 1,
+					})
+					AddCorner(fb, 2)
+					Connect(fb.FocusLost, function()
+						local n = tonumber(fb.Text)
+						if n then setter(clamp(floor(n), 0, 255)) end
+					end)
+					return f, fb
+				end
+
+				local rF, rBox = mkRGBField("R", function() return Byte(color.R) end, function(val)
+					updateColor(RGB(val, Byte(color.G), Byte(color.B)), false)
+					if sv and sv.Parent then sv.BackgroundColor3 = HSV(h, 1, 1) end
+				end)
+				rF.Position = UD2(0, 10, 0, rgbY)
+
+				local gF, gBox = mkRGBField("G", function() return Byte(color.G) end, function(val)
+					updateColor(RGB(Byte(color.R), val, Byte(color.B)), false)
+					if sv and sv.Parent then sv.BackgroundColor3 = HSV(h, 1, 1) end
+				end)
+				gF.Position = UD2(0.33, 2, 0, rgbY)
+
+				local bF, bBox = mkRGBField("B", function() return Byte(color.B) end, function(val)
+					updateColor(RGB(Byte(color.R), Byte(color.G), val), false)
+					if sv and sv.Parent then sv.BackgroundColor3 = HSV(h, 1, 1) end
+				end)
+				bF.Position = UD2(0.66, 2, 0, rgbY)
+
+				-- dragging logic
+				local svDragging = false
+				local hueDragging = false
+
+				Connect(sv.InputBegan, function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 then
+						svDragging = true
+						local x = clamp((input.Position.X - sv.AbsolutePosition.X) / max(sv.AbsoluteSize.X, 1), 0, 1)
+						local y = clamp((input.Position.Y - sv.AbsolutePosition.Y) / max(sv.AbsoluteSize.Y, 1), 0, 1)
+						s, v = x, 1 - y
+						updateColor(HSV(h, s, v), false)
+					end
+				end)
+
+				Connect(hueBar.InputBegan, function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 then
+						hueDragging = true
+						local y = clamp((input.Position.Y - hueBar.AbsolutePosition.Y) / max(hueBar.AbsoluteSize.Y, 1), 0, 1)
+						h = y
+						sv.BackgroundColor3 = HSV(h, 1, 1)
+						updateColor(HSV(h, s, v), false)
+					end
+				end)
+
+				Connect(uis.InputChanged, function(input)
+					if input.UserInputType == Enum.UserInputType.MouseMovement then
+						if svDragging then
+							local x = clamp((input.Position.X - sv.AbsolutePosition.X) / max(sv.AbsoluteSize.X, 1), 0, 1)
+							local y = clamp((input.Position.Y - sv.AbsolutePosition.Y) / max(sv.AbsoluteSize.Y, 1), 0, 1)
+							s, v = x, 1 - y
+							updateColor(HSV(h, s, v), false)
+						elseif hueDragging then
+							local y = clamp((input.Position.Y - hueBar.AbsolutePosition.Y) / max(hueBar.AbsoluteSize.Y, 1), 0, 1)
+							h = y
+							sv.BackgroundColor3 = HSV(h, 1, 1)
+							updateColor(HSV(h, s, v), false)
+						end
+					end
+				end)
+
+				Connect(uis.InputEnded, function(input)
+					if input.UserInputType == Enum.UserInputType.MouseButton1 then
+						svDragging = false
+						hueDragging = false
+					end
+				end)
+
+				Connect(hexBox.FocusLost, function()
+					local c = HexToColor(hexBox.Text)
+					if c then
+						updateColor(c, false)
+						if sv and sv.Parent then sv.BackgroundColor3 = HSV(h, 1, 1) end
+					else
+						hexBox.Text = ColorToHex(color)
+					end
+				end)
+			end
+
+			Connect(cBtn.MouseButton1Click, function()
+				if menuOpen then closePopup() else buildPopup() end
+			end)
+
+			Connect(uis.InputBegan, function(input)
+				if menuOpen and input.UserInputType == Enum.UserInputType.MouseButton1 then
+					if popup and not IsMouseInside(popup, input) and not IsMouseInside(cBtn, input) then
+						closePopup()
+					end
+				end
+			end)
+
+			function obj:Set(c)
+				if typeof(c) == "string" then c = HexToColor(c) end
+				updateColor(c, false)
+			end
+			function obj:Get() return color end
+			function obj:SetVisible(vv) row.Visible = vv == true; section:_UpdateSize() end
+
+			if p.Flag then FrontierLib.Pointers[p.Flag] = obj end
+			if p.DependsOn then RegisterDependency(row, p.DependsOn, section) end
+
+			AddTooltip(row, p.Tip, p.TipDesc)
+			updateColor(color, true)
+			RegisterElement(row, p.Text)
+			section:_UpdateSize()
+			return obj
+		end
+
+		-- AddKeybind (with modifiers)
+		function api:AddKeybind(p)
+			p = p or {}
+			local key = tostring(p.Default or "None")
+			if typeof(p.Default) == "EnumItem" then key = p.Default.Name end
+			local modifiers = { Ctrl = false, Shift = false, Alt = false }
+
+			local row = Mk("Frame", {
+				Parent = section._Holder,
+				Size = UD2(1, 0, 0, 28),
+				BackgroundTransparency = 1,
+				ZIndex = Z.Element,
+			})
+
+			local label = Mk("TextLabel", {
+				Parent = row,
+				Size = UD2(1, -95, 1, 0),
+				BackgroundTransparency = 1,
+				Text = tostring(p.Text or "Keybind"),
+				Font = Enum.Font.SourceSans,
+				TextSize = 14,
+				TextColor3 = FrontierLib.Theme.Text,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(label, "TextColor3", "Text")
+
+			local btn = Mk("TextButton", {
+				Parent = row,
+				Position = UD2(1, -90, 0, 3),
+				Size = UD2(0, 90, 0, 22),
+				BackgroundColor3 = FrontierLib.Theme.PanelDark,
+				BorderSizePixel = 0,
+				Text = "[" .. key .. "]",
+				Font = Enum.Font.Code,
+				TextSize = 12,
+				TextColor3 = FrontierLib.Theme.SubText,
+				AutoButtonColor = false,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(btn, "BackgroundColor3", "PanelDark")
+			FrontierLib:_RegisterTheme(btn, "TextColor3", "SubText")
+			AddCorner(btn, 4)
+			AddStroke(btn, "Border", 0.25, 1)
+			AddHover(btn, "PanelDark", "Hover")
+
+			local binding = false
+			local obj = {}
+
+			local function getDisplayName()
+				local parts = {}
+				if modifiers.Ctrl then tinsert(parts, "Ctrl") end
+				if modifiers.Shift then tinsert(parts, "Shift") end
+				if modifiers.Alt then tinsert(parts, "Alt") end
+				tinsert(parts, key)
+				return "[" .. table.concat(parts, "+") .. "]"
+			end
+
+			local function updateBind(noCallback)
+				btn.Text = getDisplayName()
+				SetFlag(p.Flag, key)
+				if key == "None" then
+					FrontierLib.Keybinds[p.Text] = nil
+				else
+					FrontierLib.Keybinds[p.Text] = {
+						Name = p.Text or "Keybind",
+						Key = key,
+						Modifiers = tclone(modifiers),
+						OnPressed = p.OnPressed,
+					}
+				end
+				if not noCallback then FireCallback(p.Callback, key) end
+			end
+
+			Connect(btn.MouseButton1Click, function()
+				if binding then return end
+				binding = true
+				btn.Text = "[...]"
+				local c
+				c = uis.InputBegan:Connect(function(input)
+					if input.UserInputType == Enum.UserInputType.Keyboard or input.UserInputType.Name:find("MouseButton") then
+						local name = InputToName(input)
+						if name == "Escape" or name == "Backspace" then
+							key = "None"
+							modifiers = { Ctrl = false, Shift = false, Alt = false }
+						elseif name == "LeftControl" or name == "RightControl" then
+							return
+						elseif name == "LeftShift" or name == "RightShift" then
+							return
+						elseif name == "LeftAlt" or name == "RightAlt" then
+							return
+						else
+							key = name
+							modifiers.Ctrl = uis:IsKeyDown(Enum.KeyCode.LeftControl) or uis:IsKeyDown(Enum.KeyCode.RightControl)
+							modifiers.Shift = uis:IsKeyDown(Enum.KeyCode.LeftShift) or uis:IsKeyDown(Enum.KeyCode.RightShift)
+							modifiers.Alt = uis:IsKeyDown(Enum.KeyCode.LeftAlt) or uis:IsKeyDown(Enum.KeyCode.RightAlt)
+						end
+						binding = false
+						updateBind(false)
+						if c then c:Disconnect() end
+					end
+				end)
+			end)
+
+			function obj:Set(k)
+				if typeof(k) == "EnumItem" then key = k.Name else key = tostring(k or "None") end
+				updateBind(false)
+			end
+			function obj:Get() return key end
+			function obj:SetVisible(v) row.Visible = v == true; section:_UpdateSize() end
+
+			if p.Flag then FrontierLib.Pointers[p.Flag] = obj end
+			if p.DependsOn then RegisterDependency(row, p.DependsOn, section) end
+
+			AddTooltip(row, p.Tip, p.TipDesc)
+			updateBind(true)
+			RegisterElement(row, p.Text)
+			section:_UpdateSize()
+			return obj
+		end
+
+		-- AddTextInput
+		function api:AddTextInput(p)
+			p = p or {}
+			local row = Mk("Frame", {
+				Parent = section._Holder,
+				Size = UD2(1, 0, 0, 50),
+				BackgroundTransparency = 1,
+				ZIndex = Z.Element,
+			})
+
+			local label = Mk("TextLabel", {
+				Parent = row,
+				Size = UD2(1, 0, 0, 17),
+				BackgroundTransparency = 1,
+				Text = tostring(p.Text or "Input"),
+				Font = Enum.Font.SourceSans,
+				TextSize = 14,
+				TextColor3 = FrontierLib.Theme.Text,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(label, "TextColor3", "Text")
+
+			local box = Mk("TextBox", {
+				Parent = row,
+				Position = UD2(0, 0, 0, 22),
+				Size = UD2(1, 0, 0, 26),
+				BackgroundColor3 = FrontierLib.Theme.PanelDark,
+				BorderSizePixel = 0,
+				Text = tostring(p.Default or ""),
+				PlaceholderText = tostring(p.Placeholder or "..."),
+				PlaceholderColor3 = FrontierLib.Theme.SubText,
+				Font = Enum.Font.SourceSans,
+				TextSize = 14,
+				TextColor3 = FrontierLib.Theme.Text,
+				ClearTextOnFocus = false,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(box, "BackgroundColor3", "PanelDark")
+			FrontierLib:_RegisterTheme(box, "TextColor3", "Text")
+			FrontierLib:_RegisterTheme(box, "PlaceholderColor3", "SubText")
+			AddCorner(box, 4)
+			AddStroke(box, "Border", 0.25, 1)
+
+			local obj = {}
+			local function update(noCallback)
+				SetFlag(p.Flag, box.Text)
+				if not noCallback then FireCallback(p.Callback, box.Text) end
+			end
+
+			Connect(box.FocusLost, function() update(false) end)
+			function obj:Set(v) box.Text = tostring(v or ""); update(false) end
+			function obj:Get() return box.Text end
+			function obj:SetVisible(v) row.Visible = v == true; section:_UpdateSize() end
+
+			if p.Flag then FrontierLib.Pointers[p.Flag] = obj end
+			if p.DependsOn then RegisterDependency(row, p.DependsOn, section) end
+
+			AddTooltip(row, p.Tip, p.TipDesc)
+			update(true)
+			RegisterElement(row, p.Text)
+			section:_UpdateSize()
+			return obj
+		end
+
+		-- AddTextArea (multi-line)
+		function api:AddTextArea(p)
+			p = p or {}
+			local lines = p.Lines or 5
+			local lineH = 16
+			local boxH = lines * lineH + 8
+
+			local row = Mk("Frame", {
+				Parent = section._Holder,
+				Size = UD2(1, 0, 0, boxH + 22),
+				BackgroundTransparency = 1,
+				ZIndex = Z.Element,
+			})
+
+			local label = Mk("TextLabel", {
+				Parent = row,
+				Size = UD2(1, 0, 0, 17),
+				BackgroundTransparency = 1,
+				Text = tostring(p.Text or "Text Area"),
+				Font = Enum.Font.SourceSans,
+				TextSize = 14,
+				TextColor3 = FrontierLib.Theme.Text,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(label, "TextColor3", "Text")
+
+			local scrollFrame = Mk("ScrollingFrame", {
+				Parent = row,
+				Position = UD2(0, 0, 0, 22),
+				Size = UD2(1, 0, 0, boxH),
+				BackgroundColor3 = FrontierLib.Theme.PanelDark,
+				BorderSizePixel = 0,
+				ScrollBarThickness = 3,
+				ScrollBarImageColor3 = FrontierLib.Theme.Accent,
+				CanvasSize = UD2(0, 0, 0, 0),
+				ZIndex = Z.ElementInner,
+			})
+			FrontierLib:_RegisterTheme(scrollFrame, "BackgroundColor3", "PanelDark")
+			AddCorner(scrollFrame, 4)
+			AddStroke(scrollFrame, "Border", 0.25, 1)
+
+			local box = Mk("TextBox", {
+				Parent = scrollFrame,
+				Size = UD2(1, -8, 1, 0),
+				Position = UD2(0, 4, 0, 0),
+				BackgroundTransparency = 1,
+				Text = tostring(p.Default or ""),
+				Font = Enum.Font.Code,
+				TextSize = 13,
+				TextColor3 = FrontierLib.Theme.Text,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextYAlignment = Enum.TextYAlignment.Top,
+				MultiLine = true,
+				TextWrapped = true,
+				ClearTextOnFocus = false,
+				ZIndex = Z.ElementInner + 1,
+			})
+			FrontierLib:_RegisterTheme(box, "TextColor3", "Text")
+
+			Connect(box:GetPropertyChangedSignal("Text"), function()
+				local h2 = TextHeight(box.Text, Enum.Font.Code, 13, scrollFrame.AbsoluteSize.X - 12) + 8
+				scrollFrame.CanvasSize = UD2(0, 0, 0, max(h2, boxH))
+			end)
+
+			local obj = {}
+			local function update(noCallback)
+				SetFlag(p.Flag, box.Text)
+				if not noCallback then FireCallback(p.Callback, box.Text) end
+			end
+
+			Connect(box.FocusLost, function() update(false) end)
+			function obj:Set(v) box.Text = tostring(v or ""); update(false) end
+			function obj:Get() return box.Text end
+			function obj:SetVisible(v) row.Visible = v == true; section:_UpdateSize() end
+
+			if p.Flag then FrontierLib.Pointers[p.Flag] = obj end
+			if p.DependsOn then RegisterDependency(row, p.DependsOn, section) end
+
+			update(true)
+			RegisterElement(row, p.Text)
+			section:_UpdateSize()
+			return obj
+		end
+
+		-- AddPlayerPicker
+		function api:AddPlayerPicker(p)
+			p = p or {}
+			local function getPlayerNames()
+				local names = {}
+				for _, plr in ipairs(plrs:GetPlayers()) do
+					tinsert(names, plr.Name)
+				end
+				table.sort(names)
+				return names
+			end
+
+			local dd = api:AddDropdown({
+				Text = p.Text or "Player",
+				Items = getPlayerNames(),
+				Default = p.Default or (lp and lp.Name) or "None",
+				Flag = p.Flag,
+				Callback = p.Callback,
+				Tip = p.Tip,
+				TipDesc = p.TipDesc,
+				DependsOn = p.DependsOn,
+			})
+
+			-- auto-refresh on player join/leave
+			Connect(plrs.PlayerAdded, function()
+				task.wait(0.1)
+				dd:Refresh(getPlayerNames())
+			end)
+			Connect(plrs.PlayerRemoving, function()
+				task.wait(0.1)
+				dd:Refresh(getPlayerNames())
+			end)
+
+			return dd
+		end
+
+		return api
+	end
+
+	------------------------------------------------------------------------------------------------
+	-- Tabs / Sections
+	------------------------------------------------------------------------------------------------
+
+	function WindowObj:AddTab(name, opts)
+		opts = opts or {}
+		local icon = opts.Icon or ""
+
+		local tab = {
+			Name = tostring(name or "Tab"),
+			Icon = icon,
+			Sections = {},
+			DefaultSection = nil,
+		}
+
+		local displayText = (icon ~= "" and (icon .. "  ") or "  ") .. tab.Name
+
+		local btn = Mk("TextButton", {
+			Parent = tabList,
+			Size = UD2(1, 0, 0, 32),
+			BackgroundColor3 = FrontierLib.Theme.PanelDark,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			Text = displayText,
+			Font = Enum.Font.SourceSans,
+			TextSize = 14,
+			TextColor3 = FrontierLib.Theme.SubText,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			AutoButtonColor = false,
+			ZIndex = Z.SidebarEl,
+		})
+		FrontierLib:_RegisterTheme(btn, "BackgroundColor3", "PanelDark")
+
+		local indicator = Mk("Frame", {
+			Parent = btn,
+			Size = UD2(0, 3, 1, -10),
+			Position = UD2(0, 0, 0, 5),
+			BackgroundColor3 = FrontierLib.Theme.Accent,
+			BackgroundTransparency = 1,
+			BorderSizePixel = 0,
+			ZIndex = Z.SidebarEl + 1,
+		})
+		FrontierLib:_RegisterTheme(indicator, "BackgroundColor3", "Accent")
+		AddCorner(indicator, 2)
+
+		local page = Mk("ScrollingFrame", {
+			Parent = content,
+			Size = UD2(1, 0, 1, 0),
+			Position = UD2(1, 0, 0, 0),
+			BackgroundTransparency = 1,
+			Visible = false,
+			ScrollBarThickness = 4,
+			ScrollBarImageColor3 = FrontierLib.Theme.Accent,
+			BorderSizePixel = 0,
+			CanvasSize = UD2(0, 0, 0, 0),
+			ZIndex = Z.Content + 1,
+		})
+		FrontierLib:_RegisterTheme(page, "ScrollBarImageColor3", "Accent")
+
+		local pageLayout = AddList(page, 8)
+		AddPadding(page, 10, 10, 10, 10)
+
+		Connect(pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+			page.CanvasSize = UD2(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 22)
+		end)
+
+		tab.Button = btn
+		tab.Indicator = indicator
+		tab.Page = page
+		tab.Layout = pageLayout
+
+		local function selectTab()
+			if WindowObj.ActiveTab == tab then return end
+			local oldTab = WindowObj.ActiveTab
+			WindowObj.ActiveTab = tab
+
+			btn.BackgroundTransparency = 0.2
+			btn.TextColor3 = FrontierLib.Theme.Text
+			Tw(indicator, {BackgroundTransparency = 0}, 0.16)
+			page.Visible = true
+
+			if oldTab then
+				page.Position = UD2(1, 0, 0, 0)
+				Tw(page, {Position = UD2(0, 0, 0, 0)}, 0.32, Enum.EasingStyle.Quart)
+				oldTab.Button.BackgroundTransparency = 1
+				oldTab.Button.TextColor3 = FrontierLib.Theme.SubText
+				Tw(oldTab.Indicator, {BackgroundTransparency = 1}, 0.16)
+				local oldPage = oldTab.Page
+				Tw(oldPage, {Position = UD2(-1, 0, 0, 0)}, 0.32, Enum.EasingStyle.Quart)
+				task.delay(0.32, function()
+					if WindowObj.ActiveTab ~= oldTab and oldPage then oldPage.Visible = false end
+				end)
+			else
+				page.Position = UD2(0, 0, 0, 0)
+			end
+
+			self._Signals.OnTabChanged:Fire(tab.Name)
+		end
+
+		Connect(btn.MouseButton1Click, selectTab)
+		Connect(btn.MouseEnter, function()
+			if WindowObj.ActiveTab ~= tab then btn.BackgroundTransparency = 0.7 end
+		end)
+		Connect(btn.MouseLeave, function()
+			if WindowObj.ActiveTab ~= tab then btn.BackgroundTransparency = 1 end
+		end)
+
+		function tab:AddSection(title)
+			local sectionFrame = Mk("Frame", {
+				Parent = page,
+				Size = UD2(1, 0, 0, 40),
+				BackgroundColor3 = FrontierLib.Theme.Panel,
+				BorderSizePixel = 0,
+				ZIndex = Z.Section,
+			})
+			FrontierLib:_RegisterTheme(sectionFrame, "BackgroundColor3", "Panel")
+			AddCorner(sectionFrame, 4)
+			AddStroke(sectionFrame, "Border", 0.12, 1)
+
+			-- gradient header underline
+			local headerLine = Mk("Frame", {
+				Parent = sectionFrame,
+				Position = UD2(0, 8, 0, 26),
+				Size = UD2(1, -16, 0, 1),
+				BackgroundColor3 = FrontierLib.Theme.Accent,
+				BackgroundTransparency = 0.75,
+				BorderSizePixel = 0,
+				ZIndex = Z.SectionHeader,
+			})
+			FrontierLib:_RegisterTheme(headerLine, "BackgroundColor3", "Accent")
+
+			local header = Mk("TextLabel", {
+				Parent = sectionFrame,
+				Position = UD2(0, 8, 0, 0),
+				Size = UD2(1, -16, 0, 26),
+				BackgroundTransparency = 1,
+				Text = tostring(title or "Section"),
+				Font = Enum.Font.SourceSansSemibold,
+				TextSize = 14,
+				TextColor3 = FrontierLib.Theme.Accent,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = Z.SectionHeader,
+			})
+			FrontierLib:_RegisterTheme(header, "TextColor3", "Accent")
+
+			local holder = Mk("Frame", {
+				Parent = sectionFrame,
+				Position = UD2(0, 8, 0, 32),
+				Size = UD2(1, -16, 0, 0),
+				BackgroundTransparency = 1,
+				ZIndex = Z.SectionHeader,
+			})
+			local holderLayout = AddList(holder, 6)
+
+			local sectionObj = {
+				_Tab = tab,
+				_Frame = sectionFrame,
+				_Holder = holder,
+				_Header = header,
+				_Layout = holderLayout,
+			}
+
+			function sectionObj:_UpdateSize()
+				task.defer(function()
+					if not sectionFrame or not sectionFrame.Parent then return end
+					local visibleCount = 0
+					for _, child in ipairs(holder:GetChildren()) do
+						if child:IsA("GuiObject") and child.Visible then visibleCount += 1 end
+					end
+					local height = holderLayout.AbsoluteContentSize.Y
+					holder.Size = UD2(1, -16, 0, height)
+					sectionFrame.Size = UD2(1, 0, 0, height + 42)
+					sectionFrame.Visible = visibleCount > 0 or searchBox.Text == ""
+				end)
+			end
+
+			Connect(holderLayout:GetPropertyChangedSignal("AbsoluteContentSize"), function()
+				sectionObj:_UpdateSize()
+			end)
+
+			CreateSectionAPI(sectionObj)
+			tinsert(tab.Sections, sectionObj)
+			tinsert(WindowObj.Sections, sectionObj)
+			sectionObj:_UpdateSize()
+			return sectionObj
+		end
+
+		-- default section
+		tab.DefaultSection = tab:AddSection(tab.Name)
+
+		-- FIXED: direct method forwarding (calls through to DefaultSection)
+		local directMethods = {
+			"AddLabel", "AddDivider", "AddParagraph", "AddImage", "AddProgressBar",
+			"AddCredits", "AddButton", "AddToggle", "AddSlider", "AddDropdown",
+			"AddColorPicker", "AddKeybind", "AddTextInput", "AddTextArea", "AddPlayerPicker",
+		}
+		for _, method in ipairs(directMethods) do
+			tab[method] = function(_, ...)
+				return tab.DefaultSection[method](tab.DefaultSection, ...)
+			end
+		end
+
+		tinsert(WindowObj.Tabs, tab)
+		if #WindowObj.Tabs == 1 then task.defer(selectTab) end
+		return tab
+	end
+
+	------------------------------------------------------------------------------------------------
+	-- Config System
+	------------------------------------------------------------------------------------------------
+
+	local function EnsureFolders()
+		if not HasFileSystem then return false end
+		if not isfolder("Frontierism") then pcall(makefolder, "Frontierism") end
+		local hubFolder = "Frontierism/" .. self.ConfigFolder
+		if not isfolder(hubFolder) then pcall(makefolder, hubFolder) end
+		return true, hubFolder
+	end
+
+	local function GetConfigs(hubFolder)
+		local cfgs = {}
+		if HasFileSystem and hubFolder then
+			local ok, files = pcall(listfiles, hubFolder)
+			if ok and files then
+				for _, file in ipairs(files) do
+					local name = tostring(file):match("([^/\\]+)%.json$")
+					if name then tinsert(cfgs, name) end
+				end
+			end
+		end
+		if #cfgs == 0 then tinsert(cfgs, "Default") end
+		table.sort(cfgs)
+		return cfgs
+	end
+
+	function WindowObj:SaveConfig(name)
+		local okFolder, hubFolder = EnsureFolders()
+		if not okFolder then
+			FrontierLib:Notify({Title = "Error", Content = "File system unavailable.", Duration = 3, Type = "error"})
+			return false
+		end
+		name = SanitizeFileName(name or FrontierLib.Flags.SelectedConfig or "Default")
+		local data = {
+			Flags = FrontierLib.Flags,
+			Theme = {},
+			ToggleKey = FrontierLib.ToggleKey.Name,
+		}
+		for k, v in pairs(FrontierLib.Theme) do
+			if typeof(v) == "Color3" then data.Theme[k] = ColorToHex(v) end
+		end
+		local encoded = hs:JSONEncode(data)
+		local ok = pcall(writefile, hubFolder .. "/" .. name .. ".json", encoded)
+		if ok then
+			FrontierLib:Notify({Title = "Config Saved", Content = name, Duration = 2, Type = "success"})
+			self._Signals.OnConfigSaved:Fire(name)
+			return true
+		else
+			FrontierLib:Notify({Title = "Error", Content = "Failed to save config.", Duration = 3, Type = "error"})
+			return false
+		end
+	end
+
+	function WindowObj:LoadConfig(name)
+		local okFolder, hubFolder = EnsureFolders()
+		if not okFolder then
+			FrontierLib:Notify({Title = "Error", Content = "File system unavailable.", Duration = 3, Type = "error"})
+			return false
+		end
+		name = SanitizeFileName(name or FrontierLib.Flags.SelectedConfig or "Default")
+		local path = hubFolder .. "/" .. name .. ".json"
+		if not isfile(path) then
+			FrontierLib:Notify({Title = "Error", Content = "Config not found.", Duration = 3, Type = "error"})
+			return false
+		end
+		local ok, data = pcall(function() return hs:JSONDecode(readfile(path)) end)
+		if not ok or type(data) ~= "table" then
+			FrontierLib:Notify({Title = "Error", Content = "Invalid config JSON.", Duration = 3, Type = "error"})
+			return false
+		end
+		local flags = data.Flags or data
+		if type(flags) == "table" then
+			for flag, value in pairs(flags) do
+				FrontierLib.Flags[flag] = value
+				if FrontierLib.Pointers[flag] and FrontierLib.Pointers[flag].Set then
+					pcall(function() FrontierLib.Pointers[flag]:Set(value) end)
+				end
+			end
+		end
+		if type(data.Theme) == "table" then
+			for key, hex in pairs(data.Theme) do
+				local c = HexToColor(hex)
+				if c then FrontierLib:SetThemeKey(key, c) end
+			end
+		end
+		if data.ToggleKey then
+			local keyItem = NameToKeyCode(data.ToggleKey)
+			if keyItem then FrontierLib.ToggleKey = keyItem end
+		end
+		FrontierLib:Notify({Title = "Config Loaded", Content = name, Duration = 2, Type = "info"})
+		self._Signals.OnConfigLoaded:Fire(name)
+		return true
+	end
+
+	------------------------------------------------------------------------------------------------
+	-- Settings Tab (auto-created)
+	------------------------------------------------------------------------------------------------
+
+	task.defer(function()
+		local settingsTab = WindowObj:AddTab("Settings", {Icon = "⚙"})
+		WindowObj._Required.Settings = true
+
+		settingsTab:AddCredits()
+
+		-- Interface section
+		local interface = settingsTab:AddSection("Interface")
+
+		interface:AddKeybind({
+			Text = "UI Toggle Key",
+			Flag = "UIToggleKey",
+			Default = FrontierLib.ToggleKey.Name,
+			Tip = "Key to hide/show UI",
+			Callback = function(key)
+				local item = NameToKeyCode(key)
+				if item then
+					FrontierLib.ToggleKey = item
+					WindowObj._Required.UIKeybinds = true
+					FrontierLib:Notify({Title = "Toggle Key", Content = "Set to " .. key, Duration = 2, Type = "success"})
+				end
+			end,
+		})
+		WindowObj._Required.UIKeybinds = true
+
+		interface:AddToggle({
+			Text = "Show Keybinds Widget",
+			Flag = "ShowKeybindsWidget",
+			Default = false,
+			Tip = "Displays registered keybinds",
+		})
+
+		interface:AddDropdown({
+			Text = "Notification Position",
+			Items = {"TopRight", "TopLeft", "BottomRight", "BottomLeft"},
+			Default = "TopRight",
+			Callback = function(v)
+				FrontierLib:SetNotificationPosition(v)
+			end,
+		})
+
+		interface:AddButton({
+			Text = "Hide UI",
+			Tip = "Reopen with toggle key",
+			Callback = function() HideRoot() end,
+		})
+
+		-- Theme section
+		local themeSec = settingsTab:AddSection("Theme")
+
+		local presetNames = {}
+		for k in pairs(FrontierLib.ThemePresets) do tinsert(presetNames, k) end
+		table.sort(presetNames)
+
+		themeSec:AddDropdown({
+			Text = "Theme Preset",
+			Items = presetNames,
+			Default = "Dark",
+			Callback = function(v)
+				FrontierLib:ApplyPreset(v)
+				-- update color picker pointers
+				for _, key in ipairs({"Accent","Bg","Topbar","Sidebar","Panel","PanelDark","PanelLight","Border","Text","SubText","Hover","Disabled","Success","Warning","Error"}) do
+					local ptr = FrontierLib.Pointers["Theme_" .. key]
+					if ptr and ptr.Set then ptr:Set(FrontierLib.Theme[key]) end
+				end
+			end,
+		})
+
+		local themeKeys = {"Accent","Bg","Topbar","Sidebar","Panel","PanelDark","PanelLight","Border","Text","SubText","Hover","Disabled","Success","Warning","Error"}
+
+		for _, key in ipairs(themeKeys) do
+			themeSec:AddColorPicker({
+				Text = key,
+				Default = FrontierLib.Theme[key],
+				Flag = "Theme_" .. key,
+				Callback = function(c) FrontierLib:SetThemeKey(key, c) end,
+			})
+		end
+
+		themeSec:AddButton({
+			Text = "Reset Theme",
+			Callback = function()
+				FrontierLib:ApplyPreset("Dark")
+				for _, k in ipairs(themeKeys) do
+					local ptr = FrontierLib.Pointers["Theme_" .. k]
+					if ptr and ptr.Set then ptr:Set(FrontierLib.Theme[k]) end
+				end
+				FrontierLib:Notify({Title = "Theme Reset", Duration = 2, Type = "info"})
+			end,
+		})
+
+		themeSec:AddButton({
+			Text = "Export Theme",
+			Callback = function()
+				local json = FrontierLib:ExportTheme()
+				pcall(setclipboard, json)
+				FrontierLib:Notify({Title = "Theme Exported", Content = "Copied to clipboard", Duration = 2, Type = "success"})
+			end,
+		})
+
+		-- Config section
+		local configSec = settingsTab:AddSection("Configuration")
+		local okFolder, hubFolder = EnsureFolders()
+
+		if not okFolder then configSec:AddLabel("File system unavailable.") end
+
+		local configDropdown = configSec:AddDropdown({
+			Text = "Select Config",
+			Flag = "SelectedConfig",
+			Items = GetConfigs(hubFolder),
+			Default = "Default",
+		})
+
+		local nameInput = configSec:AddTextInput({
+			Text = "Config Name",
+			Placeholder = "MyConfig",
+			Default = "",
+		})
+
+		configSec:AddButton({
+			Text = "Save Config",
+			Callback = function()
+				local name = nameInput:Get()
+				if name == "" then name = FrontierLib.Flags.SelectedConfig or "Default" end
+				if WindowObj:SaveConfig(name) then
+					local _, folder = EnsureFolders()
+					configDropdown:Refresh(GetConfigs(folder), name)
+				end
+			end,
+		})
+
+		configSec:AddButton({
+			Text = "Load Config",
+			Callback = function()
+				WindowObj:LoadConfig(FrontierLib.Flags.SelectedConfig or "Default")
+			end,
+		})
+
+		configSec:AddButton({
+			Text = "Delete Config",
+			Callback = function()
+				local selected = FrontierLib.Flags.SelectedConfig or "Default"
+				FrontierLib:Prompt({
+					Title = "Delete Config",
+					Content = "Delete '" .. selected .. "'? This cannot be undone.",
+					Buttons = {
+						{Text = "Delete", Callback = function()
+							local _, folder = EnsureFolders()
+							local n = SanitizeFileName(selected)
+							local path = folder .. "/" .. n .. ".json"
+							if HasFileSystem and isfile(path) then
+								pcall(delfile, path)
+								FrontierLib:Notify({Title = "Deleted", Content = n, Duration = 2, Type = "warning"})
+								configDropdown:Refresh(GetConfigs(folder), "Default")
+							end
+						end},
+						{Text = "Cancel"},
+					},
+				})
+			end,
+		})
+
+		-- Automation section
+		local autoSec = settingsTab:AddSection("Automation")
+		local autoLoadFile = hubFolder and (hubFolder .. "/autoload.txt") or nil
+		local autoLoadEnabled = HasFileSystem and autoLoadFile and isfile(autoLoadFile) and readfile(autoLoadFile) ~= ""
+
+		autoSec:AddToggle({
+			Text = "Autoload Config on Join",
+			Flag = "AutoloadConfig",
+			Default = autoLoadEnabled,
+			Callback = function(st)
+				if not HasFileSystem or not autoLoadFile then return end
+				if st then
+					local n = FrontierLib.Flags.SelectedConfig or "Default"
+					pcall(writefile, autoLoadFile, n)
+					FrontierLib:Notify({Title = "Autoload", Content = "Set to " .. n, Duration = 2, Type = "success"})
+				else
+					pcall(writefile, autoLoadFile, "")
+					FrontierLib:Notify({Title = "Autoload", Content = "Disabled", Duration = 2, Type = "info"})
+				end
+			end,
+		})
+
+		autoSec:AddButton({
+			Text = "Copy Loadstring",
+			Tip = "Copy autoexecute template",
+			Callback = function()
+				pcall(setclipboard, 'loadstring(game:HttpGet("YOUR_RAW_LINK_HERE"))()')
+				FrontierLib:Notify({Title = "Copied", Duration = 2, Type = "success"})
+			end,
+		})
+
+		-- Discord section
+		if cfg.Discord and cfg.Discord.Enabled then
+			local discSec = settingsTab:AddSection("Discord")
+			discSec:AddButton({
+				Text = "Join Discord",
+				Callback = function()
+					if HasRequest and cfg.Discord.InviteCode then
+						pcall(raw_request, {
+							Url = "http://127.0.0.1:6463/rpc?v=1",
+							Method = "POST",
+							Headers = {["Content-Type"] = "application/json", Origin = "https://discord.com"},
+							Body = hs:JSONEncode({
+								cmd = "INVITE_BROWSER",
+								nonce = hs:GenerateGUID(false),
+								args = {code = cfg.Discord.InviteCode},
+							}),
+						})
+					end
+					FrontierLib:Notify({Title = "Discord", Content = "Invite opened", Duration = 2, Type = "info"})
+				end,
+			})
+		end
+
+		-- Console / Log section
+		local consoleSec = settingsTab:AddSection("Console")
+
+		local consoleScroll = Mk("ScrollingFrame", {
+			Parent = consoleSec._Holder,
+			Size = UD2(1, 0, 0, 180),
+			LayoutOrder = 0,
+			BackgroundColor3 = FrontierLib.Theme.PanelDark,
+			BackgroundTransparency = 0.25,
+			BorderSizePixel = 0,
+			ScrollBarThickness = 3,
+			ScrollBarImageColor3 = FrontierLib.Theme.Accent,
+			CanvasSize = UD2(0, 0, 0, 0),
+			ZIndex = Z.Element,
+		})
+		FrontierLib:_RegisterTheme(consoleScroll, "BackgroundColor3", "PanelDark")
+		FrontierLib:_RegisterTheme(consoleScroll, "ScrollBarImageColor3", "Accent")
+		AddCorner(consoleScroll, 3)
+
+		local consoleLayout = AddList(consoleScroll, 1)
+		AddPadding(consoleScroll, 4, 4, 4, 4)
+
+		local consoleAutoScroll = true
+		local consoleLabels = {}
+
+		local function ConsoleAddEntry(entry)
+			if not entry or entry.message == "__CLEAR__" then return end
+			local sev = LOG_SEVERITY[entry.severity] or LOG_SEVERITY.print
+			local txt = format("[%s] [%s] %s", entry.timestamp, sev.tag, entry.message)
+
+			local lbl = Mk("TextLabel", {
+				Parent = consoleScroll,
+				Size = UD2(1, -8, 0, 14),
+				BackgroundTransparency = 1,
+				Text = txt,
+				Font = Enum.Font.Code,
+				TextSize = 11,
+				TextColor3 = sev.color,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextWrapped = true,
+				AutomaticSize = Enum.AutomaticSize.Y,
+				RichText = false,
+				ZIndex = Z.Element + 1,
+			})
+			tinsert(consoleLabels, lbl)
+
+			-- update canvas
+			task.defer(function()
+				if not consoleLayout or not consoleLayout.Parent then return end
+				consoleScroll.CanvasSize = UD2(0, 0, 0, consoleLayout.AbsoluteContentSize.Y + 10)
+				if consoleAutoScroll then
+					consoleScroll.CanvasPosition = V2(0, max(0, consoleLayout.AbsoluteContentSize.Y - 170))
+				end
+			end)
+		end
+
+		-- populate existing entries
+		for _, entry in ipairs(FrontierLib:GetLogs()) do
+			ConsoleAddEntry(entry)
+		end
+
+		-- subscribe to live entries
+		FrontierLib._Signals.OnLog:Connect(function(entry)
+			if entry.message == "__CLEAR__" then
+				for _, lbl in ipairs(consoleLabels) do SafeDestroy(lbl) end
+				table.clear(consoleLabels)
+				consoleScroll.CanvasSize = UD2(0, 0, 0, 0)
+				consoleScroll.CanvasPosition = V2(0, 0)
+				return
+			end
+			ConsoleAddEntry(entry)
+		end)
+
+		consoleSec:AddToggle({
+			Text = "Auto-scroll",
+			Default = true,
+			Callback = function(v) consoleAutoScroll = v end,
+		})
+
+		consoleSec:AddToggle({
+			Text = "Hook print/warn Output",
+			Default = false,
+			Tip = "Captures print() and warn() calls into the console log",
+			Callback = function(v)
+				if v then FrontierLib:HookConsole() else FrontierLib:UnhookConsole() end
+			end,
+		})
+
+		consoleSec:AddButton({
+			Text = "Copy Log",
+			Tip = "Copy all log entries to clipboard",
+			Callback = function()
+				local lines = {}
+				for _, entry in ipairs(FrontierLib:GetLogs()) do
+					local sev = LOG_SEVERITY[entry.severity] or LOG_SEVERITY.print
+					tinsert(lines, format("[%s] [%s] %s", entry.timestamp, sev.tag, entry.message))
+				end
+				pcall(setclipboard, table.concat(lines, "\n"))
+				FrontierLib:Notify({Title = "Console", Content = #lines .. " entries copied", Duration = 2, Type = "success"})
+			end,
+		})
+
+		consoleSec:AddButton({
+			Text = "Clear Log",
+			Callback = function()
+				FrontierLib:ClearLogs()
+				FrontierLib:Notify({Title = "Console", Content = "Log cleared", Duration = 1.5, Type = "info"})
+			end,
+		})
+
+		consoleSec:_UpdateSize()
+
+		-- autoload
+		if HasFileSystem and autoLoadFile and isfile(autoLoadFile) then
+			local autoCfg = readfile(autoLoadFile)
+			if autoCfg and autoCfg ~= "" then
+				task.delay(0.75, function() WindowObj:LoadConfig(autoCfg) end)
+			end
+		end
+	end)
+
+	------------------------------------------------------------------------------------------------
+	-- Watermark
+	------------------------------------------------------------------------------------------------
+
+	local wmGui = Mk("Frame", {
+		Parent = sg,
+		Size = UD2(0, 240, 0, 26),
+		Position = UD2(1, -254, 0, 10),
+		BackgroundColor3 = self.Theme.PanelDark,
+		BackgroundTransparency = 0.08,
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = Z.Watermark,
+	})
+	self:_RegisterTheme(wmGui, "BackgroundColor3", "PanelDark")
+	AddCorner(wmGui, 4)
+	AddStroke(wmGui, "Accent", 0.4, 1)
+
+	local wmLabel = Mk("TextLabel", {
+		Parent = wmGui,
+		Size = UD2(1, 0, 1, 0),
+		BackgroundTransparency = 1,
+		Text = "",
+		Font = Enum.Font.Code,
+		TextSize = 12,
+		TextColor3 = self.Theme.Text,
+		ZIndex = Z.Watermark + 1,
+	})
+	self:_RegisterTheme(wmLabel, "TextColor3", "Text")
+
+	local wmTemplate = ""
+	local wmVisible = false
+	local fpsBuffer = {}
+	local fpsIdx = 0
+	local fpsBufSize = 30
+
+	function WindowObj:SetWatermark(opts)
+		opts = opts or {}
+		wmTemplate = opts.Text or "frontierism | {fps} fps | {ping}ms | {time}"
+		wmVisible = opts.Visible ~= false
+		wmGui.Visible = wmVisible
+
+		if opts.Position == "TopLeft" then
+			wmGui.Position = UD2(0, 14, 0, 10)
+		elseif opts.Position == "BottomRight" then
+			wmGui.Position = UD2(1, -254, 1, -40)
+		elseif opts.Position == "BottomLeft" then
+			wmGui.Position = UD2(0, 14, 1, -40)
+		else
+			wmGui.Position = UD2(1, -254, 0, 10)
+		end
+	end
+
+	local wmUpdateTimer = 0
+	RegisterFrameCallback("Watermark", function(dt)
+		if not wmVisible or not wmGui.Visible then return end
+		wmUpdateTimer = wmUpdateTimer + dt
+		if wmUpdateTimer < 0.25 then return end
+		wmUpdateTimer = 0
+
+		-- FPS
+		fpsIdx = fpsIdx + 1
+		if fpsIdx > fpsBufSize then fpsIdx = 1 end
+		fpsBuffer[fpsIdx] = 1 / max(dt, 0.001)
+		local fpsSum = 0
+		local fpsCount = 0
+		for _, v2 in ipairs(fpsBuffer) do fpsSum = fpsSum + v2; fpsCount = fpsCount + 1 end
+		local fps = floor(fpsSum / max(fpsCount, 1))
+
+		-- Ping
+		local ping = 0
+		pcall(function() ping = floor(stats.Network.ServerStatsItem["Data Ping"]:GetValue()) end)
+
+		-- Time
+		local timeStr = os.date("%H:%M:%S")
+
+		-- User
+		local userName = lp and lp.Name or "User"
+
+		local text = wmTemplate
+		text = text:gsub("{fps}", tostring(fps))
+		text = text:gsub("{ping}", tostring(ping))
+		text = text:gsub("{time}", timeStr)
+		text = text:gsub("{user}", userName)
+		wmLabel.Text = text
+
+		local w = TextWidth(text, Enum.Font.Code, 12) + 24
+		wmGui.Size = UD2(0, max(w, 120), 0, 26)
+	end)
+
+	-- Watermark drag
+	local wmDrag = { active = false, start = ZV2, startPos = nil }
+	Connect(wmGui.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			wmDrag.active = true
+			wmDrag.start = V2(input.Position.X, input.Position.Y)
+			wmDrag.startPos = wmGui.Position
+		end
+	end)
+	Connect(uis.InputChanged, function(input)
+		if wmDrag.active and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = V2(input.Position.X, input.Position.Y) - wmDrag.start
+			wmGui.Position = UD2(0, wmDrag.startPos.X.Offset + delta.X, 0, wmDrag.startPos.Y.Offset + delta.Y)
+		end
+	end)
+	Connect(uis.InputEnded, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then wmDrag.active = false end
+	end)
+
+	------------------------------------------------------------------------------------------------
+	-- Keybinds Widget (event-driven update)
+	------------------------------------------------------------------------------------------------
+
+	local kbWidget = Mk("Frame", {
+		Parent = sg,
+		Position = UD2(0, 20, 0, 200),
+		Size = UD2(0, 195, 0, 32),
+		BackgroundColor3 = self.Theme.PanelDark,
+		BorderSizePixel = 0,
+		Visible = false,
+		ZIndex = Z.Watermark,
+	})
+	self:_RegisterTheme(kbWidget, "BackgroundColor3", "PanelDark")
+	AddCorner(kbWidget, 4)
+	AddStroke(kbWidget, "Accent", 0.3, 1)
+
+	local kbHeader = Mk("TextLabel", {
+		Parent = kbWidget,
+		Size = UD2(1, 0, 0, 30),
+		BackgroundTransparency = 1,
+		Text = " Keybinds",
+		Font = Enum.Font.SourceSansSemibold,
+		TextSize = 13,
+		TextColor3 = self.Theme.Accent,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = Z.Watermark + 1,
+	})
+	self:_RegisterTheme(kbHeader, "TextColor3", "Accent")
+
+	local kbList = Mk("Frame", {
+		Parent = kbWidget,
+		Position = UD2(0, 0, 0, 30),
+		Size = UD2(1, 0, 1, -30),
+		BackgroundTransparency = 1,
+		ZIndex = Z.Watermark + 1,
+	})
+	AddList(kbList, 0)
+	local kbLabels = {}
+
+	local function UpdateKeybindsWidget()
+		if not FrontierLib.Flags.ShowKeybindsWidget then
+			kbWidget.Visible = false
+			return
+		end
+
+		local count = 0
+		local index = 1
+
+		for id, bind in pairs(FrontierLib.Keybinds) do
+			local name = id
+			local key = bind
+			if type(bind) == "table" then
+				name = bind.Name or id
+				key = bind.Key or "None"
+			end
+			if key ~= "None" then
+				count += 1
+				if not kbLabels[index] then
+					local lbl = Mk("TextLabel", {
+						Parent = kbList,
+						Size = UD2(1, 0, 0, 20),
+						BackgroundTransparency = 1,
+						Font = Enum.Font.Code,
+						TextSize = 12,
+						TextColor3 = FrontierLib.Theme.Text,
+						TextXAlignment = Enum.TextXAlignment.Left,
+						ZIndex = Z.Watermark + 2,
+					})
+					FrontierLib:_RegisterTheme(lbl, "TextColor3", "Text")
+					kbLabels[index] = lbl
+				end
+				kbLabels[index].Text = format(" %s: [%s]", tostring(name), tostring(key))
+				kbLabels[index].Visible = true
+				index += 1
+			end
+		end
+
+		for i = index, #kbLabels do kbLabels[i].Visible = false end
+		kbWidget.Visible = count > 0
+		kbWidget.Size = UD2(0, 195, 0, 34 + count * 20)
+	end
+
+	-- update on flag change instead of every frame
+	self._Signals.OnFlagChanged:Connect(function(flag)
+		if flag == "ShowKeybindsWidget" then
+			UpdateKeybindsWidget()
+		end
+	end)
+
+	-- also update periodically but much less frequently
+	local kbTimer = 0
+	RegisterFrameCallback("KeybindWidget", function(dt)
+		kbTimer = kbTimer + dt
+		if kbTimer < 1 then return end
+		kbTimer = 0
+		UpdateKeybindsWidget()
+	end)
+
+	-- Widget drag
+	local kbDrag = { active = false, start = ZV2, startPos = nil }
+	Connect(kbHeader.InputBegan, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			kbDrag.active = true
+			kbDrag.start = V2(input.Position.X, input.Position.Y)
+			kbDrag.startPos = kbWidget.Position
+		end
+	end)
+	Connect(uis.InputChanged, function(input)
+		if kbDrag.active and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = V2(input.Position.X, input.Position.Y) - kbDrag.start
+			kbWidget.Position = UD2(0, kbDrag.startPos.X.Offset + delta.X, 0, kbDrag.startPos.Y.Offset + delta.Y)
+		end
+	end)
+	Connect(uis.InputEnded, function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then kbDrag.active = false end
+	end)
+
+	------------------------------------------------------------------------------------------------
+	-- Auto-Save
+	------------------------------------------------------------------------------------------------
+
+	if cfg.AutoSave then
+		RegisterFrameCallback("AutoSave", function(dt)
+			if not WindowObj._AutoSave then return end
+			local now = tk()
+			if now - WindowObj._LastAutoSave >= WindowObj._AutoSaveInterval then
+				WindowObj._LastAutoSave = now
+				local name = FrontierLib.Flags.SelectedConfig or "Default"
+				WindowObj:SaveConfig(name)
+			end
+		end)
+	end
+
+	------------------------------------------------------------------------------------------------
+	-- Global Input
+	------------------------------------------------------------------------------------------------
+
+	Connect(uis.InputBegan, function(input, gpe)
+		if gpe or uis:GetFocusedTextBox() then return end
+
+		if input.KeyCode == FrontierLib.ToggleKey then
+			WindowObj:Toggle()
+			return
+		end
+
+		for _, bind in pairs(FrontierLib.Keybinds) do
+			if type(bind) == "table" and bind.OnPressed and InputMatches(input, bind.Key) then
+				-- check modifiers
+				local mods = bind.Modifiers or {}
+				local ctrlOk = not mods.Ctrl or uis:IsKeyDown(Enum.KeyCode.LeftControl) or uis:IsKeyDown(Enum.KeyCode.RightControl)
+				local shiftOk = not mods.Shift or uis:IsKeyDown(Enum.KeyCode.LeftShift) or uis:IsKeyDown(Enum.KeyCode.RightShift)
+				local altOk = not mods.Alt or uis:IsKeyDown(Enum.KeyCode.LeftAlt) or uis:IsKeyDown(Enum.KeyCode.RightAlt)
+				if ctrlOk and shiftOk and altOk then
+					pcall(bind.OnPressed, input)
+				end
+			end
+		end
+	end)
+
+	------------------------------------------------------------------------------------------------
+	-- Key System
+	------------------------------------------------------------------------------------------------
+
+	if cfg.KeySystem then
+		local ks = cfg.KeySettings or {}
+		local ksTitle = ks.Title or "Key System"
+		local ksNote = ks.Note or "Enter your key below"
+		local ksKeys = ks.Keys or {}
+		local ksSave = ks.SaveKey ~= false
+		local ksFile = "Frontierism/" .. SanitizeFileName(ks.FileName or "key") .. ".key"
+		local ksMaxAttempts = ks.MaxAttempts or 5
+		local ksAttempts = 0
+
+		-- check saved key
+		local savedKey = ""
+		if ksSave and HasFileSystem then
+			pcall(function()
+				if isfile(ksFile) then savedKey = readfile(ksFile) end
+			end)
+		end
+
+		local function validateKey(input)
+			-- check against local keys
+			for _, k in ipairs(ksKeys) do
+				if type(k) == "string" then
+					if k:match("^https?://") then
+						-- remote key
+						local ok, remote = pcall(function()
+							return game:HttpGet(k)
+						end)
+						if ok and remote and remote:gsub("%s+", "") == input:gsub("%s+", "") then
+							return true
+						end
+					elseif k == input then
+						return true
+					end
+				end
+			end
+			return false
+		end
+
+		if savedKey ~= "" and validateKey(savedKey) then
+			-- already authenticated
+		else
+			root.Visible = false
+
+			local ksOverlay = Mk("Frame", {
+				Parent = sg,
+				Size = UD2(1, 0, 1, 0),
+				BackgroundColor3 = RGB(0, 0, 0),
+				BackgroundTransparency = 0.3,
+				BorderSizePixel = 0,
+				ZIndex = Z.KeySystem - 1,
+			})
+
+			local ksFrame = Mk("Frame", {
+				Parent = sg,
+				Size = UD2(0, 340, 0, 200),
+				Position = UD2(0.5, -170, 0.5, -100),
+				BackgroundColor3 = self.Theme.Bg,
+				BorderSizePixel = 0,
+				ZIndex = Z.KeySystem,
+			})
+			self:_RegisterTheme(ksFrame, "BackgroundColor3", "Bg")
+			AddCorner(ksFrame, 6)
+			AddStroke(ksFrame, "Accent", 0.2, 1)
+
+			local ksAccent = Mk("Frame", {
+				Parent = ksFrame,
+				Size = UD2(1, 0, 0, 2),
+				BackgroundColor3 = self.Theme.Accent,
+				BorderSizePixel = 0,
+				ZIndex = Z.KeySystemInner,
+			})
+			self:_RegisterTheme(ksAccent, "BackgroundColor3", "Accent")
+
+			local ksTitleLbl = Mk("TextLabel", {
+				Parent = ksFrame,
+				Position = UD2(0, 20, 0, 16),
+				Size = UD2(1, -40, 0, 24),
+				BackgroundTransparency = 1,
+				Text = ksTitle,
+				Font = Enum.Font.GothamBold,
+				TextSize = 18,
+				TextColor3 = self.Theme.Text,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = Z.KeySystemInner,
+			})
+			self:_RegisterTheme(ksTitleLbl, "TextColor3", "Text")
+
+			local ksNoteLbl = Mk("TextLabel", {
+				Parent = ksFrame,
+				Position = UD2(0, 20, 0, 44),
+				Size = UD2(1, -40, 0, 18),
+				BackgroundTransparency = 1,
+				Text = ksNote,
+				Font = Enum.Font.SourceSans,
+				TextSize = 14,
+				TextColor3 = self.Theme.SubText,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = Z.KeySystemInner,
+			})
+			self:_RegisterTheme(ksNoteLbl, "TextColor3", "SubText")
+
+			local ksInput = Mk("TextBox", {
+				Parent = ksFrame,
+				Position = UD2(0, 20, 0, 80),
+				Size = UD2(1, -40, 0, 32),
+				BackgroundColor3 = self.Theme.PanelDark,
+				BorderSizePixel = 0,
+				PlaceholderText = "Enter key...",
+				PlaceholderColor3 = self.Theme.SubText,
+				Text = "",
+				Font = Enum.Font.Code,
+				TextSize = 14,
+				TextColor3 = self.Theme.Text,
+				ClearTextOnFocus = false,
+				ZIndex = Z.KeySystemInner,
+			})
+			self:_RegisterTheme(ksInput, "BackgroundColor3", "PanelDark")
+			self:_RegisterTheme(ksInput, "TextColor3", "Text")
+			AddCorner(ksInput, 4)
+			AddStroke(ksInput, "Border", 0.2, 1)
+
+			local ksStatus = Mk("TextLabel", {
+				Parent = ksFrame,
+				Position = UD2(0, 20, 0, 120),
+				Size = UD2(1, -40, 0, 16),
+				BackgroundTransparency = 1,
+				Text = "",
+				Font = Enum.Font.SourceSans,
+				TextSize = 13,
+				TextColor3 = self.Theme.Error,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				ZIndex = Z.KeySystemInner,
+			})
+
+			local ksBtn = Mk("TextButton", {
+				Parent = ksFrame,
+				Position = UD2(0, 20, 0, 148),
+				Size = UD2(1, -40, 0, 34),
+				BackgroundColor3 = self.Theme.Accent,
+				BorderSizePixel = 0,
+				Text = "Validate",
+				Font = Enum.Font.SourceSansSemibold,
+				TextSize = 15,
+				TextColor3 = self.Theme.Bg,
+				AutoButtonColor = false,
+				ZIndex = Z.KeySystemInner,
+			})
+			self:_RegisterTheme(ksBtn, "BackgroundColor3", "Accent")
+			AddCorner(ksBtn, 4)
+
+			Connect(ksBtn.MouseButton1Click, function()
+				local input = ksInput.Text:gsub("^%s+", ""):gsub("%s+$", "")
+				if input == "" then
+					ksStatus.Text = "Please enter a key."
+					return
+				end
+
+				ksAttempts = ksAttempts + 1
+				if ksAttempts > ksMaxAttempts then
+					ksStatus.Text = "Too many attempts."
+					return
+				end
+
+				if validateKey(input) then
+					-- save key
+					if ksSave and HasFileSystem then
+						pcall(function()
+							if not isfolder("Frontierism") then makefolder("Frontierism") end
+							writefile(ksFile, input)
+						end)
+					end
+
+					-- remove key UI
+					SafeDestroy(ksOverlay)
+					SafeDestroy(ksFrame)
+
+					-- show main window
+					if root and root.Parent then ShowRoot() end
+				else
+					ksStatus.Text = format("Invalid key. (%d/%d attempts)", ksAttempts, ksMaxAttempts)
+					Tw(ksInput, {Position = UD2(0, 14, 0, 80)}, 0.05)
+					task.delay(0.05, function()
+						Tw(ksInput, {Position = UD2(0, 26, 0, 80)}, 0.05)
+						task.delay(0.05, function()
+							Tw(ksInput, {Position = UD2(0, 20, 0, 80)}, 0.05)
+						end)
+					end)
+				end
+			end)
+		end
+	end
+
+	return WindowObj
+end
+
+----------------------------------------------------------------------------------------------------
+-- Secure Mode
+----------------------------------------------------------------------------------------------------
+
+function FrontierLib:SetSecure(enabled)
+	self.SecureMode = enabled == true
+	if enabled then
+		for _, gui in ipairs(self._Guis) do
+			if gui and gui.Parent then
+				pcall(function() gui.Name = RandomName() end)
+			end
+		end
+	end
+end
+
+----------------------------------------------------------------------------------------------------
+-- Destroy
+----------------------------------------------------------------------------------------------------
+
+function FrontierLib:Destroy()
+	self._Alive = false
+	DisconnectAll()
+	self._FrameCallbacks = {}
+
+	-- restore hooked globals
+	self:UnhookConsole()
+	table.clear(_LogBuffer)
+
+	for inst, tween in pairs(TwCache) do
+		pcall(function() tween:Cancel() end)
+		TwCache[inst] = nil
+	end
+
+	for _, gui in ipairs(self._Guis or {}) do SafeDestroy(gui) end
+	self._Guis = {}
+
+	pcall(function()
+		local ui = GuiParent:FindFirstChild("Frontierism_UI")
+		if ui then ui:Destroy() end
+	end)
+	pcall(function()
+		local nf = GuiParent:FindFirstChild("Frontier_Notifications")
+		if nf then nf:Destroy() end
+	end)
+	pcall(function()
+		local blur = lighting:FindFirstChild("Frontier_Blur")
+		if blur then blur:Destroy() end
+	end)
+
+	self.Flags = {}
+	self.Pointers = {}
+	self.Keybinds = {}
+	self._ThemeIndex = {}
+	self._Windows = {}
+	self._DependencyMap = {}
+	self._NotifHistory = {}
+end
+
+return FrontierLib
